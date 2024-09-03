@@ -2,7 +2,7 @@ CFLAGS = -Wall -Wextra -Wpedantic -Wno-unused-parameter -Og -g
 
 all: cclipd
 
-cclipd: cclipd.o db.o common.o protocol/wlr-data-control-unstable-v1.o
+cclipd: cclipd.o db.o common.o wayland.o protocol/wlr-data-control-unstable-v1.o
 	$(CC) $^ -lwayland-client -lsqlite3 -o $@
 
 cclipd.o: cclipd.c protocol/wlr-data-control-unstable-v1-client-protocol.h
@@ -12,6 +12,9 @@ db.o: db.c db.h common.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
 common.o: common.c common.h
+	$(CC) $(CFLAGS) -c $< -o $@
+
+wayland.o: wayland.c wayland.h common.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
 protocol/wlr-data-control-unstable-v1.o: protocol/wlr-data-control-unstable-v1.c

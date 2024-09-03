@@ -1,20 +1,14 @@
 #define _XOPEN_SOURCE 500 /* pread */
 #include <stdbool.h>
-#include <stdint.h>
-#include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
-#include <wayland-client-core.h>
-#include <wayland-client.h>
 #include <unistd.h>
 #include <time.h> /* time */
 
 #include "protocol/wlr-data-control-unstable-v1-client-protocol.h"
+#include "wayland.h"
 #include "common.h"
 #include "db.h"
-
-struct wl_display* display;
 
 void receive(struct zwlr_data_control_offer_v1* offer) {
     int pipes[2];
@@ -109,12 +103,12 @@ void mime_type_offer_handler(void* data, struct zwlr_data_control_offer_v1* offe
     fprintf(stderr, "Got MIME type offer: %s\n", mime_type);
 }
 
-const struct zwlr_data_control_offer_v1_listener offer_listener = {
+const struct zwlr_data_control_offer_v1_listener data_control_offer_listener = {
 	.offer = mime_type_offer_handler,
 };
 
 void data_offer_handler(void* data, struct zwlr_data_control_device_v1* device, struct zwlr_data_control_offer_v1* offer) {
-	zwlr_data_control_offer_v1_add_listener(offer, &offer_listener, NULL);
+	zwlr_data_control_offer_v1_add_listener(offer, &data_control_offer_listener, NULL);
 }
 
 void selection_handler(void* data, struct zwlr_data_control_device_v1* device, struct zwlr_data_control_offer_v1* offer) {
@@ -133,7 +127,7 @@ void primary_selection_handler(void* data, struct zwlr_data_control_device_v1* d
     receive(offer);
 }
 
-const struct zwlr_data_control_device_v1_listener device_listener = {
+const struct zwlr_data_control_device_v1_listener data_control_device_listener = {
 	.data_offer = data_offer_handler,
 	.selection = selection_handler,
 	.primary_selection = primary_selection_handler,
@@ -143,37 +137,14 @@ int main(int argc, char** argv) {
     char* db_path = get_db_path();
     db_init(db_path);
 
-	display = wl_display_connect(NULL);
-	if (display == NULL) {
-		die("failed to connect to display");
-    }
+    wayland_init();
 
-	struct wl_registry* const registry = wl_display_get_registry(display);
-	if (registry == NULL) {
-		die("failed to get registry");
-    }
-
-	wl_registry_add_listener(registry, &registry_listener, NULL);
-
-	wl_display_roundtrip(display);
-
-	if (seat == NULL) {
-		die("failed to bind to seat interface");
-    }
-
-	if (data_control_manager == NULL) {
-		die("failed to bind to data_control_manager interface");
-    }
-
-	struct zwlr_data_control_device_v1* device = zwlr_data_control_manager_v1_get_data_device(data_control_manager, seat);
-	if (device == NULL) {
-		die("data device is null");
-    }
-
-	zwlr_data_control_device_v1_add_listener(device, &device_listener, NULL);
+	zwlr_data_control_device_v1_add_listener(data_control_device,
+                                             &data_control_device_listener,
+                                             NULL);
 
 	wl_display_roundtrip(display);
     while (wl_display_dispatch(display) != -1) {
-        // main event loop
+        /* main event loop */
     }
 }
