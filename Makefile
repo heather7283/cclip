@@ -1,26 +1,29 @@
-PREFIX = /usr
-MANPREFIX = $(PREFIX)/share/man
-LIB = -lwayland-client -lsqlite3
-EXE = cclipd
-OBJ_COMMON = protocol/wlr-data-control-unstable-v1.o common.o db.o
-CFLAGS = -Wall -Wpedantic
+CFLAGS = -Wall -Wextra -Wpedantic -Wno-unused-parameter -Og -g
 
-all: $(EXE)
+all: cclipd
 
-cclipd: cclipd.o $(OBJ_COMMON)
-	$(CC) cclipd.o $(OBJ_COMMON) $(LIB) -o $@
+cclipd: cclipd.o db.o common.o protocol/wlr-data-control-unstable-v1.o
+	$(CC) $^ -lwayland-client -lsqlite3 -o $@
 
-cclipd.o: cclipd.c common.h db.h protocol/wlr-data-control-unstable-v1-client-protocol.h
-
-protocol/wlr-data-control-unstable-v1.c: protocol/wlr-data-control-unstable-v1.xml
-	wayland-scanner private-code protocol/wlr-data-control-unstable-v1.xml $@
-
-protocol/wlr-data-control-unstable-v1-client-protocol.h: protocol/wlr-data-control-unstable-v1.xml
-	wayland-scanner client-header protocol/wlr-data-control-unstable-v1.xml $@
-
-%.o: %.c
+cclipd.o: cclipd.c protocol/wlr-data-control-unstable-v1-client-protocol.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
-clean:
-	rm -f *.o $(EXE) protocol/*.[och]
+db.o: db.c db.h common.h
+	$(CC) $(CFLAGS) -c $< -o $@
 
+common.o: common.c common.h
+	$(CC) $(CFLAGS) -c $< -o $@
+
+protocol/wlr-data-control-unstable-v1.o: protocol/wlr-data-control-unstable-v1.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+protocol/wlr-data-control-unstable-v1.c: protocol/wlr-data-control-unstable-v1.xml
+	wayland-scanner private-code $< $@
+
+protocol/wlr-data-control-unstable-v1-client-protocol.h: protocol/wlr-data-control-unstable-v1.xml
+	wayland-scanner client-header $< $@
+
+clean:
+	rm -f *.o cclipd protocol/*.[och]
+
+.PHONY: all clean
