@@ -1,4 +1,6 @@
+#include <stdint.h>
 #define _XOPEN_SOURCE 500 /* pread */
+#include <string.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -9,21 +11,29 @@
 #include "wayland.h"
 #include "common.h"
 #include "db.h"
+#include "pending_offers.h"
 
 void receive(struct zwlr_data_control_offer_v1* offer) {
+    fprintf(stderr, "listing all available MIME types:\n");
+    struct pending_offer* pending_offer = find_pending_offer(offer);
+    char* mime_type = strdup(pending_offer->data->mime_types[0]);
+    for (unsigned int i = 0; i < pending_offer->data->mime_types_len; i++) {
+        fprintf(stderr, "%d\t%s\n", i, pending_offer->data->mime_types[i]);
+    }
+    fprintf(stderr, "done listing all available MIME types.\n");
+    delete_pending_offer(offer);
+
+    time_t timestamp = time(NULL);
+
+    debug("start receiving offer...");
+
     int pipes[2];
     if (pipe(pipes) == -1) {
         die("failed to create pipe");
     }
 
-    time_t timestamp = time(NULL);
-
-    const char* mime_type = "text/plain";
-
-    debug("start receiving offer...");
-
     zwlr_data_control_offer_v1_receive(offer, mime_type, pipes[1]);
-    wl_display_roundtrip(display); /* TODO: understand wtf does this do */
+    wl_display_roundtrip(display);
     close(pipes[1]);
 
     /* TODO: rewrite this reading from pipe code */
@@ -91,6 +101,7 @@ void receive(struct zwlr_data_control_offer_v1* offer) {
     sqlite3_finalize(stmt);
 
 out:
+    free(mime_type);
     free(buffer);
     zwlr_data_control_offer_v1_destroy(offer);
 }
@@ -100,6 +111,8 @@ void mime_type_offer_handler(void* data, struct zwlr_data_control_offer_v1* offe
         return;
     }
 
+    pending_offer_add_mimetype(offer, mime_type);
+
     fprintf(stderr, "Got MIME type offer: %s\n", mime_type);
 }
 
@@ -108,6 +121,8 @@ const struct zwlr_data_control_offer_v1_listener data_control_offer_listener = {
 };
 
 void data_offer_handler(void* data, struct zwlr_data_control_device_v1* device, struct zwlr_data_control_offer_v1* offer) {
+    add_pending_offer(offer);
+
 	zwlr_data_control_offer_v1_add_listener(offer, &data_control_offer_listener, NULL);
 }
 
@@ -124,7 +139,9 @@ void primary_selection_handler(void* data, struct zwlr_data_control_device_v1* d
         return;
     }
 
-    receive(offer);
+    /* receive(offer); */
+    /* ignore primary selection for now, will be a config option later */
+    return;
 }
 
 const struct zwlr_data_control_device_v1_listener data_control_device_listener = {
@@ -136,6 +153,7 @@ const struct zwlr_data_control_device_v1_listener data_control_device_listener =
 int main(int argc, char** argv) {
     char* db_path = get_db_path();
     db_init(db_path);
+    free(db_path);
 
     wayland_init();
 
