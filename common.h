@@ -1,8 +1,12 @@
-extern struct config {
-    int debug_level; /* 0: err, 1: warn, 2: debug */
-    const char* db_path;
-} config;
+#ifndef COMMON_H
+#define COMMON_H
 
-void die(const char* const message);
-void warn(const char* const message);
-void debug(const char* const message);
+#include <stdlib.h> /* exit */
+#include <stdio.h> /* fprintf */
+
+#define debug(...) do { fprintf(stderr, "DEBUG: " __VA_ARGS__); } while(0)
+#define warn(...) do { fprintf(stderr, "WARN: " __VA_ARGS__); } while(0)
+#define die(...) do { fprintf(stderr, "CRITICAL: " __VA_ARGS__); exit(1); } while(0)
+
+#endif /* #ifndef COMMON_H */
+

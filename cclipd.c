@@ -1,119 +1,204 @@
 #include <stdint.h>
-#define _XOPEN_SOURCE 500 /* pread */
 #include <string.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <time.h> /* time */
+#include <fnmatch.h>
 
 #include "protocol/wlr-data-control-unstable-v1-client-protocol.h"
 #include "wayland.h"
 #include "common.h"
 #include "db.h"
 #include "pending_offers.h"
+#include "config.h"
 
-void receive(struct zwlr_data_control_offer_v1* offer) {
-    fprintf(stderr, "listing all available MIME types:\n");
-    struct pending_offer* pending_offer = find_pending_offer(offer);
-    char* mime_type = strdup(pending_offer->data->mime_types[0]);
-    for (unsigned int i = 0; i < pending_offer->data->mime_types_len; i++) {
-        fprintf(stderr, "%d\t%s\n", i, pending_offer->data->mime_types[i]);
+#define PREVIEW_LEN 128
+
+int argc;
+char** argv;
+char* prog_name;
+
+char* pick_mime_type(unsigned int mime_types_len, char** mime_types) {
+    for (int i = 0; i < config.accepted_mime_types_len; i++) {
+        for (unsigned int j = 0; j < mime_types_len; j++) {
+            char* pattern = config.accepted_mime_types[i];
+            char* string = mime_types[j];
+
+            debug("matching %s against %s\n", string, pattern);
+            if (fnmatch(pattern, string, 0) == 0) {
+                debug("selected mime type: %s\n", string);
+                return strdup(string);
+            }
+        }
     }
-    fprintf(stderr, "done listing all available MIME types.\n");
-    delete_pending_offer(offer);
+    return NULL;
+}
 
-    time_t timestamp = time(NULL);
+char* generate_preview(const void* const data, const int64_t data_size,
+                       const char* const mime_type) {
+    char* preview = calloc(PREVIEW_LEN, sizeof(char));
+    if (preview == NULL) {
+        die("failed to allocate memory for preview string\n");
+    }
 
-    debug("start receiving offer...");
+    if (fnmatch("*text*", mime_type, 0) == 0) {
+        strncpy(preview, data, PREVIEW_LEN);
+        for (int i = 0; i < PREVIEW_LEN; i++) {
+            if (preview[i] == '\n' || preview[i] == '\t') {
+                preview[i] = ' ';
+            }
+        }
+    } else {
+        snprintf(preview, PREVIEW_LEN, "%s | %" PRIi64 " bytes", mime_type, data_size);
+    }
+
+    return preview;
+}
+
+void insert_db_entry(struct db_entry* entry) {
+    /* Prepare the SQL statement */
+    const char* insert_statement =
+        "INSERT INTO history"
+        "(data, data_size, preview, mime_type, timestamp)"
+        "VALUES (?, ?, ?, ?, ?)";
+    sqlite3_stmt* stmt;
+    int ret_code = sqlite3_prepare_v2(db, insert_statement, -1, &stmt, NULL);
+    if (ret_code != SQLITE_OK) {
+        die("%s\n", sqlite3_errmsg(db));
+    }
+
+    /* Bind parameters */
+    sqlite3_bind_blob(stmt, 1, entry->data, entry->data_size, SQLITE_STATIC);
+    sqlite3_bind_int64(stmt, 2, entry->data_size);
+    sqlite3_bind_text(stmt, 3, entry->preview, -1, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 4, entry->mime_type, -1, SQLITE_STATIC);
+    sqlite3_bind_int64(stmt, 5, entry->creation_time);
+
+    /* Execute the statement */
+    ret_code = sqlite3_step(stmt);
+    if (ret_code != SQLITE_DONE) {
+        die("%s\n", sqlite3_errmsg(db));
+    } else {
+        debug("record inserted successfully\n");
+    }
+
+    /* Finalize the statement */
+    sqlite3_finalize(stmt);
+}
+
+size_t receive_data(char** buffer, struct zwlr_data_control_offer_v1* offer, char* mime_type) {
+    debug("start receiving offer...\n");
 
     int pipes[2];
     if (pipe(pipes) == -1) {
-        die("failed to create pipe");
+        die("failed to create pipe\n");
     }
 
     zwlr_data_control_offer_v1_receive(offer, mime_type, pipes[1]);
     wl_display_roundtrip(display);
     close(pipes[1]);
 
-    /* TODO: rewrite this reading from pipe code */
     const size_t INITIAL_BUFFER_SIZE = 1024;
     const int GROWTH_FACTOR = 2;
 
-    char* buffer = malloc(INITIAL_BUFFER_SIZE);
-    if (!buffer) {
-        die("failed to allocate initial buffer");
+    *buffer = malloc(INITIAL_BUFFER_SIZE);
+    if (*buffer == NULL) {
+        die("failed to allocate initial buffer\n");
     }
 
     size_t buffer_size = INITIAL_BUFFER_SIZE;
     size_t total_read = 0;
     ssize_t bytes_read;
 
-    while ((bytes_read = read(pipes[0], buffer + total_read, buffer_size - total_read)) > 0) {
+    while ((bytes_read = read(pipes[0], *buffer + total_read, buffer_size - total_read)) > 0) {
         total_read += bytes_read;
 
         if (total_read == buffer_size) {
             buffer_size *= GROWTH_FACTOR;
-            char* new_buffer = realloc(buffer, buffer_size);
+            char* new_buffer = realloc(*buffer, buffer_size);
             if (new_buffer == NULL) {
-                die("failed to reallocate buffer");
+                die("failed to reallocate buffer\n");
             }
-            buffer = new_buffer;
+            *buffer = new_buffer;
         }
     }
 
     if (bytes_read == -1) {
-        die("error reading from pipe");
+        die("error reading from pipe\n");
     }
 
     close(pipes[0]);
 
-    debug("done receiving offer");
+    debug("done receiving offer\n");
+    debug("received %" PRIu64 " bytes\n", total_read);
 
-    if (total_read == 0) {
-        warn("received 0 bytes");
+    return total_read;
+}
+
+void receive(struct zwlr_data_control_offer_v1* offer) {
+    char* mime_type = NULL;
+    char* buffer = NULL;
+    struct db_entry* new_entry = NULL;
+    struct pending_offer* pending_offer = NULL;
+
+    time_t timestamp = time(NULL);
+
+    pending_offer = find_pending_offer(offer);
+    mime_type = pick_mime_type(pending_offer->data->mime_types_len,
+                               pending_offer->data->mime_types);
+    delete_pending_offer(offer);
+
+    if (mime_type == NULL) {
+        debug("didn't match any mime type, not receiving this offer\n");
         goto out;
     }
 
-    /* Prepare the SQL statement */
-    const char* insert_statement =
-        "INSERT INTO history (data, mime_type, timestamp) VALUES (?, ?, ?)";
-    sqlite3_stmt* stmt;
-    int ret_code = sqlite3_prepare_v2(db, insert_statement, -1, &stmt, NULL);
-    if (ret_code != SQLITE_OK) {
-        die(sqlite3_errmsg(db));
+    size_t bytes_read = receive_data(&buffer, offer, mime_type);
+
+    if (bytes_read == 0) {
+        warn("received 0 bytes\n");
+        goto out;
     }
 
-    /* Bind parameters */
-    sqlite3_bind_blob(stmt, 1, buffer, total_read, SQLITE_STATIC);
-    sqlite3_bind_text(stmt, 2, mime_type, -1, SQLITE_STATIC);
-    sqlite3_bind_int64(stmt, 3, timestamp);
-
-    /* Execute the statement */
-    ret_code = sqlite3_step(stmt);
-    if (ret_code != SQLITE_DONE) {
-        die(sqlite3_errmsg(db));
-    } else {
-        debug("record inserted successfully");
+    new_entry = malloc(sizeof(struct db_entry));
+    if (new_entry == NULL) {
+        die("failed to allocate memory for db_entry struct\n");
     }
 
-    /* Finalize the statement */
-    sqlite3_finalize(stmt);
+    new_entry->data = buffer;
+    new_entry->data_size = bytes_read;
+    new_entry->mime_type = mime_type;
+    new_entry->creation_time = timestamp;
+    new_entry->preview = generate_preview(new_entry->data,
+                                          new_entry->data_size,
+                                          new_entry->mime_type);
 
+    insert_db_entry(new_entry);
 out:
-    free(mime_type);
-    free(buffer);
+    if (mime_type != NULL) {
+        free(mime_type);
+    }
+    if (buffer != NULL) {
+        free(buffer);
+    }
+    if (new_entry != NULL) {
+        free(new_entry->preview);
+        free(new_entry);
+    }
     zwlr_data_control_offer_v1_destroy(offer);
 }
 
 void mime_type_offer_handler(void* data, struct zwlr_data_control_offer_v1* offer, const char* mime_type) {
     if (offer == NULL) {
+        warn("offer %p is NULL!\n", offer);
         return;
     }
 
     pending_offer_add_mimetype(offer, mime_type);
 
-    fprintf(stderr, "Got MIME type offer: %s\n", mime_type);
+    //debug("got MIME type offer: %s\n", mime_type);
 }
 
 const struct zwlr_data_control_offer_v1_listener data_control_offer_listener = {
@@ -128,6 +213,7 @@ void data_offer_handler(void* data, struct zwlr_data_control_device_v1* device, 
 
 void selection_handler(void* data, struct zwlr_data_control_device_v1* device, struct zwlr_data_control_offer_v1* offer) {
     if (offer == NULL) {
+        warn("offer %p is NULL!\n", offer);
         return;
     }
 
@@ -136,6 +222,7 @@ void selection_handler(void* data, struct zwlr_data_control_device_v1* device, s
 
 void primary_selection_handler(void* data, struct zwlr_data_control_device_v1* device, struct zwlr_data_control_offer_v1* offer) {
     if (offer == NULL) {
+        warn("offer %p is NULL!\n", offer);
         return;
     }
 
@@ -150,10 +237,65 @@ const struct zwlr_data_control_device_v1_listener data_control_device_listener =
 	.primary_selection = primary_selection_handler,
 };
 
-int main(int argc, char** argv) {
-    char* db_path = get_db_path();
+void parse_command_line(void) {
+    int opt;
+
+    /*
+     * parsing command line options
+     * -c   path to config file
+     * -d   path to database file
+     * -m   accepted mime type pattern
+     */
+    while ((opt = getopt(argc, argv, ":c:d:m:")) != -1) {
+        switch (opt) {
+        case 'c':
+            debug("config file path supplied on command line: %s\n", optarg);
+            config.config_file_path = strdup(optarg);
+            break;
+        case 'd':
+            debug("db file path supplied on command line: %s\n", optarg);
+            config.db_path = strdup(optarg);
+            break;
+        case 'm':
+            debug("accepted mime type pattern supplied on command line: %s\n", optarg);
+
+            char* new_mimetype = strdup(optarg);
+            if (new_mimetype == NULL) {
+                die("failed to allocate memory for accepted mime type pattern\n");
+            }
+
+            char** new_accepted_mime_types =
+                    realloc(config.accepted_mime_types,
+                            (config.accepted_mime_types_len + 1) * sizeof(char*));
+            if (new_accepted_mime_types == NULL) {
+                die("failed to allocate memory for accepted mime types array\n");
+            }
+
+            config.accepted_mime_types = new_accepted_mime_types;
+            config.accepted_mime_types[config.accepted_mime_types_len] = new_mimetype;
+            config.accepted_mime_types_len += 1;
+            break;
+        case '?':
+            die("unknown option: %c\n", optopt);
+            break;
+        case ':':
+            die("missing arg for %c\n", optopt);
+            break;
+        default:
+            die("error while parsing command line options\n");
+        }
+    }
+}
+
+int main(int _argc, char** _argv) {
+    argc = _argc;
+    argv = _argv;
+
+    parse_command_line();
+    config_set_default_values();
+
+    char* db_path = config.db_path;
     db_init(db_path);
-    free(db_path);
 
     wayland_init();
 
@@ -166,3 +308,4 @@ int main(int argc, char** argv) {
         /* main event loop */
     }
 }
+

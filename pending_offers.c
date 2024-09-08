@@ -22,13 +22,13 @@ struct pending_offer* find_pending_offer(const struct zwlr_data_control_offer_v1
 
     if (!match_found) {
         die("did not find matching offer in pending offers list, "
-            "this is most likely a bug in cclipd");
+            "this is most likely a bug in cclipd\n");
     }
 
     return pending_offer;
 }
 
-static struct pending_offer* find_last_pending_offer() {
+static struct pending_offer* find_last_pending_offer(void) {
     struct pending_offer* pending_offer = pending_offers;
     bool found = false;
 
@@ -42,7 +42,7 @@ static struct pending_offer* find_last_pending_offer() {
 
     if (found == false) {
         die("did not find last offer in pending offers list, "
-            "this is most likely a bug in cclipd");
+            "this is most likely a bug in cclipd\n");
     }
 
     return pending_offer;
@@ -97,21 +97,20 @@ void pending_offer_add_mimetype(const struct zwlr_data_control_offer_v1* offer,
     struct pending_offer* pending_offer = find_pending_offer(offer);
     struct pending_offer_data* data = pending_offer->data;
 
-    // Allocate memory for the new MIME type
+    /* allocate memory for the new MIME type */
     char* new_mime_type = strdup(mime_type);
     if (new_mime_type == NULL) {
-        die("failed to allocate memory for new mime type");  // Memory allocation failed
+        die("failed to allocate memory for new mime type\n");
     }
 
-    // Resize the mime_types array
+    /* resize the mime_types array */
     char** new_mime_types = realloc(data->mime_types, (data->mime_types_len + 1) * sizeof(char*));
     if (new_mime_types == NULL) {
-        die("failed to allocate memory for new mime type");  // Memory allocation failed
+        die("failed to allocate memory for new mime type\n");
     }
 
-    // Update the mime_types array and length
     data->mime_types = new_mime_types;
     data->mime_types[data->mime_types_len] = new_mime_type;
-    data->mime_types_len++;
+    data->mime_types_len += 1;
 }
 

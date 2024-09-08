@@ -1,3 +1,6 @@
+#ifndef PENDING_OFFERS_H
+#define PENDING_OFFERS_H
+
 #include <stdint.h>
 
 struct pending_offer_data {
@@ -22,3 +25,6 @@ void delete_pending_offer(const struct zwlr_data_control_offer_v1* offer);
 
 void pending_offer_add_mimetype(const struct zwlr_data_control_offer_v1* offer,
                                 const char* mime_type);
+
+#endif /* #ifndef PENDING_OFFERS_H */
+

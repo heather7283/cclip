@@ -50,7 +50,7 @@ const struct wl_registry_listener registry_listener = {
 };
 
 /* boilerplate code to initialise some required wayland stuff */
-void wayland_init() {
+void wayland_init(void) {
 	display = wl_display_connect(NULL);
 	if (display == NULL) {
 		die("failed to connect to display");
