@@ -56,10 +56,10 @@ char* generate_preview(const void* const data, const int64_t data_size,
         for (int i = 0; i < PREVIEW_LEN; i++) {
             if (preview[i] == '\0') {
                 break;
-            } else if (preview[i] < 32 || preview[i] > 126) {
-                preview[i] = '?';
             } else if (preview[i] == '\n' || preview[i] == '\t') {
                 preview[i] = ' ';
+            } else if (preview[i] < 32 || preview[i] > 126) {
+                preview[i] = '?';
             }
         }
     } else {
