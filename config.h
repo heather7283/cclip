@@ -11,6 +11,7 @@ struct config {
     size_t min_data_size;
     char* db_path;
     char* config_file_path;
+    bool primary_selection;
 };
 extern struct config config;
 

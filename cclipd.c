@@ -238,14 +238,16 @@ void selection_handler(void* data, struct zwlr_data_control_device_v1* device, s
 }
 
 void primary_selection_handler(void* data, struct zwlr_data_control_device_v1* device, struct zwlr_data_control_offer_v1* offer) {
+    if (!config.primary_selection) {
+        return;
+    }
+
     if (offer == NULL) {
         warn("offer is NULL!\n");
         return;
     }
 
-    /* receive(offer); */
-    /* ignore primary selection for now, will be a config option later */
-    return;
+    receive(offer);
 }
 
 const struct zwlr_data_control_device_v1_listener data_control_device_listener = {
@@ -264,7 +266,7 @@ void print_help_and_exit(int exit_status) {
         "cclipd - clipboard manager daemon\n"
         "\n"
         "usage:\n"
-        "    %s [-vVh] [-d db_path] [-t pattern]\n"
+        "    %s [-vVhp] [-d DB_PATH] [-t PATTERN] [-s SIZE]\n"
         "\n"
         "command line options:\n"
         "    -V            display version and exit\n"
@@ -272,7 +274,10 @@ void print_help_and_exit(int exit_status) {
         "    -v            increase verbosity\n"
         "    -d DB_PATH    specify path to databse file\n"
         "    -t PATTERN    specify MIME type pattern to accept,\n"
-        "                  can be supplied multiple times\n";
+        "                  can be supplied multiple times\n"
+        "    -s SIZE       clipboard entry will only be saved if\n"
+        "                  its size in bytes is not less than SIZE\n"
+        "    -p            also monitor primary selection\n";
 
     fprintf(stderr, help_string, prog_name);
     exit(exit_status);
@@ -281,7 +286,7 @@ void print_help_and_exit(int exit_status) {
 void parse_command_line(void) {
     int opt;
 
-    while ((opt = getopt(argc, argv, ":c:d:t:s:vVh")) != -1) {
+    while ((opt = getopt(argc, argv, ":c:d:t:s:pvVh")) != -1) {
         switch (opt) {
         case 'c':
             debug("config file path supplied on command line: %s\n", optarg);
@@ -315,6 +320,9 @@ void parse_command_line(void) {
             if (config.min_data_size < 1) {
                 die("MINSIZE must be a positive integer, got %s\n", optarg);
             }
+            break;
+        case 'p':
+            config.primary_selection = true;
             break;
         case 'v':
             config.verbose = true;

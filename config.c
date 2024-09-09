@@ -17,7 +17,8 @@ struct config config = {
     .accepted_mime_types = NULL,
     .min_data_size = 1,
     .db_path = NULL,
-    .config_file_path = NULL
+    .config_file_path = NULL,
+    .primary_selection = false,
 };
 
 static char* get_default_db_path(void) {
