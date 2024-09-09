@@ -12,6 +12,9 @@
 struct sqlite3* db;
 
 sqlite3* db_init(const char* const db_path) {
+    char* errmsg = NULL;
+    int ret_code = 0;
+
     if (access(db_path, F_OK) == -1) {
         warn("database file does not exist\n");
         /* TODO: also recursively create all needed directories */
@@ -22,9 +25,19 @@ sqlite3* db_init(const char* const db_path) {
         fclose(db_file);
     }
 
-    int ret_code = sqlite3_open(db_path, &db);
+    ret_code = sqlite3_open(db_path, &db);
     if (ret_code != SQLITE_OK) {
-        die("%s\n", sqlite3_errstr(ret_code));
+        die("sqlite error: %s\n", sqlite3_errstr(ret_code));
+    }
+
+    /* enable WAL https://sqlite.org/wal.html */
+    ret_code = sqlite3_exec(db, "PRAGMA journal_mode=WAL", NULL, NULL, &errmsg);
+    if (ret_code != SQLITE_OK) {
+        die("sqlite error: %s\n", errmsg);
+    }
+    ret_code = sqlite3_exec(db, "PRAGMA synchronous=NORMAL", NULL, NULL, &errmsg);
+    if (ret_code != SQLITE_OK) {
+        die("sqlite error: %s\n", errmsg);
     }
 
     const char* db_create_expr =
@@ -37,10 +50,9 @@ sqlite3* db_init(const char* const db_path) {
         "    timestamp INTEGER NOT NULL"
         ")";
 
-    char* errmsg;
     ret_code = sqlite3_exec(db, db_create_expr, NULL, NULL, &errmsg);
     if (ret_code != SQLITE_OK) {
-        die("%s\n", errmsg);
+        die("sqlite error: %s\n", errmsg);
     }
 
     return db;
