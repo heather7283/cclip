@@ -16,6 +16,10 @@
 
 #define PREVIEW_LEN 128
 
+#ifndef VERSION
+#define VERSION "unknown_version"
+#endif
+
 int argc;
 char** argv;
 char* prog_name;
@@ -44,9 +48,17 @@ char* generate_preview(const void* const data, const int64_t data_size,
     }
 
     if (fnmatch("*text*", mime_type, 0) == 0) {
-        strncpy(preview, data, PREVIEW_LEN);
+        strncpy(preview, data, min(data_size, PREVIEW_LEN));
+        /*
+         * filter garbage characters, leave only valid ASCII
+         * TODO: handle unicode (cjk and stuff)
+         */
         for (int i = 0; i < PREVIEW_LEN; i++) {
-            if (preview[i] == '\n' || preview[i] == '\t') {
+            if (preview[i] == '\0') {
+                break;
+            } else if (preview[i] < 32 || preview[i] > 126) {
+                preview[i] = '?';
+            } else if (preview[i] == '\n' || preview[i] == '\t') {
                 preview[i] = ' ';
             }
         }
@@ -60,8 +72,8 @@ char* generate_preview(const void* const data, const int64_t data_size,
 void insert_db_entry(struct db_entry* entry) {
     /* Prepare the SQL statement */
     const char* insert_statement =
-        "INSERT INTO history"
-        "(data, data_size, preview, mime_type, timestamp)"
+        "INSERT OR REPLACE INTO history "
+        "(data, data_size, preview, mime_type, timestamp) "
         "VALUES (?, ?, ?, ?, ?)";
     sqlite3_stmt* stmt;
     int ret_code = sqlite3_prepare_v2(db, insert_statement, -1, &stmt, NULL);
@@ -162,6 +174,11 @@ void receive(struct zwlr_data_control_offer_v1* offer) {
         goto out;
     }
 
+    if (bytes_read < config.min_data_size) {
+        debug("received less bytes than min_data_size, not saving this entry\n");
+        goto out;
+    }
+
     new_entry = malloc(sizeof(struct db_entry));
     if (new_entry == NULL) {
         die("failed to allocate memory for db_entry struct\n");
@@ -192,7 +209,7 @@ out:
 
 void mime_type_offer_handler(void* data, struct zwlr_data_control_offer_v1* offer, const char* mime_type) {
     if (offer == NULL) {
-        warn("offer %p is NULL!\n", offer);
+        warn("offer is NULL!\n");
         return;
     }
 
@@ -213,7 +230,7 @@ void data_offer_handler(void* data, struct zwlr_data_control_device_v1* device, 
 
 void selection_handler(void* data, struct zwlr_data_control_device_v1* device, struct zwlr_data_control_offer_v1* offer) {
     if (offer == NULL) {
-        warn("offer %p is NULL!\n", offer);
+        warn("offer is NULL!\n");
         return;
     }
 
@@ -222,7 +239,7 @@ void selection_handler(void* data, struct zwlr_data_control_device_v1* device, s
 
 void primary_selection_handler(void* data, struct zwlr_data_control_device_v1* device, struct zwlr_data_control_offer_v1* offer) {
     if (offer == NULL) {
-        warn("offer %p is NULL!\n", offer);
+        warn("offer is NULL!\n");
         return;
     }
 
@@ -237,16 +254,34 @@ const struct zwlr_data_control_device_v1_listener data_control_device_listener =
 	.primary_selection = primary_selection_handler,
 };
 
+void print_version_and_exit(void) {
+    fprintf(stderr, "cclipd version %s\n", VERSION);
+    exit(0);
+}
+
+void print_help_and_exit(int exit_status) {
+    const char* help_string =
+        "cclipd - clipboard manager daemon\n"
+        "\n"
+        "usage:\n"
+        "    %s [-vVh] [-d db_path] [-t pattern]\n"
+        "\n"
+        "command line options:\n"
+        "    -V            display version and exit\n"
+        "    -h            print this help message and exit\n"
+        "    -v            increase verbosity\n"
+        "    -d DB_PATH    specify path to databse file\n"
+        "    -t PATTERN    specify MIME type pattern to accept,\n"
+        "                  can be supplied multiple times\n";
+
+    fprintf(stderr, help_string, prog_name);
+    exit(exit_status);
+}
+
 void parse_command_line(void) {
     int opt;
 
-    /*
-     * parsing command line options
-     * -c   path to config file
-     * -d   path to database file
-     * -m   accepted mime type pattern
-     */
-    while ((opt = getopt(argc, argv, ":c:d:m:")) != -1) {
+    while ((opt = getopt(argc, argv, ":c:d:t:s:vVh")) != -1) {
         switch (opt) {
         case 'c':
             debug("config file path supplied on command line: %s\n", optarg);
@@ -256,7 +291,7 @@ void parse_command_line(void) {
             debug("db file path supplied on command line: %s\n", optarg);
             config.db_path = strdup(optarg);
             break;
-        case 'm':
+        case 't':
             debug("accepted mime type pattern supplied on command line: %s\n", optarg);
 
             char* new_mimetype = strdup(optarg);
@@ -275,11 +310,28 @@ void parse_command_line(void) {
             config.accepted_mime_types[config.accepted_mime_types_len] = new_mimetype;
             config.accepted_mime_types_len += 1;
             break;
+        case 's':
+            config.min_data_size = atoi(optarg);
+            if (config.min_data_size < 1) {
+                die("MINSIZE must be a positive integer, got %s\n", optarg);
+            }
+            break;
+        case 'v':
+            config.verbose = true;
+            break;
+        case 'V':
+            print_version_and_exit();
+            break;
+        case 'h':
+            print_help_and_exit(0);
+            break;
         case '?':
-            die("unknown option: %c\n", optopt);
+            fprintf(stderr, "unknown option: %c\n", optopt);
+            print_help_and_exit(1);
             break;
         case ':':
-            die("missing arg for %c\n", optopt);
+            fprintf(stderr, "missing arg for %c\n", optopt);
+            print_help_and_exit(1);
             break;
         default:
             die("error while parsing command line options\n");
@@ -290,6 +342,7 @@ void parse_command_line(void) {
 int main(int _argc, char** _argv) {
     argc = _argc;
     argv = _argv;
+    prog_name = argc > 0 ? argv[0] : "cclipd";
 
     parse_command_line();
     config_set_default_values();

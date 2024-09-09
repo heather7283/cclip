@@ -15,6 +15,7 @@ struct config config = {
     .verbose = false,
     .accepted_mime_types_len = 0,
     .accepted_mime_types = NULL,
+    .min_data_size = 1,
     .db_path = NULL,
     .config_file_path = NULL
 };

@@ -8,5 +8,8 @@
 #define warn(...) do { fprintf(stderr, "WARN: " __VA_ARGS__); } while(0)
 #define die(...) do { fprintf(stderr, "CRITICAL: " __VA_ARGS__); exit(1); } while(0)
 
+#define min(a, b) a < b ? a : b
+#define max(a, b) a > b ? a : b
+
 #endif /* #ifndef COMMON_H */
 

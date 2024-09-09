@@ -2,11 +2,13 @@
 #define CONFIG_H
 
 #include <stdbool.h>
+#include <stddef.h>
 
 struct config {
     bool verbose;
     int accepted_mime_types_len;
     char** accepted_mime_types;
+    size_t min_data_size;
     char* db_path;
     char* config_file_path;
 };
