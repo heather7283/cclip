@@ -9,7 +9,7 @@
 
 #include "common.h"
 
-struct sqlite3* db;
+struct sqlite3* db = NULL;
 
 sqlite3* db_init(const char* const db_path) {
     char* errmsg = NULL;
