@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <time.h> /* time */
 #include <fnmatch.h>
+#include <ctype.h> /* isspace, isprint */
 
 #include "protocol/wlr-data-control-unstable-v1-client-protocol.h"
 #include "wayland.h"
@@ -40,6 +41,66 @@ char* pick_mime_type(unsigned int mime_types_len, char** mime_types) {
     return NULL;
 }
 
+size_t sanitise_string(char* str) {
+    /*
+     * makes sure garbage characters don't leak into preview
+     * returns size of modified string because it can change
+     */
+    if (str == NULL) {
+        return 0;
+    }
+
+    size_t read = 0;
+    size_t write = 0;
+
+    while (str[read] != '\0') {
+        if (isprint((unsigned char)str[read]) || str[read] == ' ') {
+            /* printable ASCII character or space */
+            str[write] = str[read];
+            write += 1;
+            read += 1;
+        } else if (isspace((unsigned char)str[read])) {
+            /* other whitespace characters (newline, tab, etc.) */
+            str[write] = ' ';
+            write += 1;
+            read += 1;
+        } else {
+            /* Check for UTF-8 multi-byte sequence */
+            int utf8_len = 0;
+            unsigned char first_byte = (unsigned char)str[read];
+
+            if ((first_byte & 0x80) == 0) {
+                utf8_len = 1;  /* ASCII char (0xxxxxxx) */
+            } else if ((first_byte & 0xE0) == 0xC0) {
+                utf8_len = 2;  /* 2-byte UTF-8 (110xxxxx) */
+            } else if ((first_byte & 0xF0) == 0xE0) {
+                utf8_len = 3;  /* 3-byte UTF-8 (1110xxxx) */
+            } else if ((first_byte & 0xF8) == 0xF0) {
+                utf8_len = 4;  /* 4-byte UTF-8 (11110xxx) */
+            }
+
+            if (utf8_len > 1 && read + utf8_len <= strlen(str)) {
+                /* valid multibyte UTF-8 sequence */
+                for (int i = 0; i < utf8_len; i++) {
+                    str[write] = str[read];
+                    write += 1;
+                    read += 1;
+                }
+            } else {
+                /* invalid or unprintable character */
+                str[write] = '?';
+                write += 1;
+                read += 1;
+            }
+        }
+    }
+
+    /* dont forget the null terminator */
+    str[write] = '\0';
+
+    return write;
+}
+
 char* generate_preview(const void* const data, const int64_t data_size,
                        const char* const mime_type) {
     char* preview = calloc(PREVIEW_LEN, sizeof(char));
@@ -49,19 +110,7 @@ char* generate_preview(const void* const data, const int64_t data_size,
 
     if (fnmatch("*text*", mime_type, 0) == 0) {
         strncpy(preview, data, min(data_size, PREVIEW_LEN));
-        /*
-         * filter garbage characters, leave only valid ASCII
-         * TODO: handle unicode (cjk and stuff)
-         */
-        for (int i = 0; i < PREVIEW_LEN; i++) {
-            if (preview[i] == '\0') {
-                break;
-            } else if (preview[i] == '\n' || preview[i] == '\t') {
-                preview[i] = ' ';
-            } else if (preview[i] < 32 || preview[i] > 126) {
-                preview[i] = '?';
-            }
-        }
+        sanitise_string(preview);
     } else {
         snprintf(preview, PREVIEW_LEN, "%s | %" PRIi64 " bytes", mime_type, data_size);
     }
@@ -214,8 +263,6 @@ void mime_type_offer_handler(void* data, struct zwlr_data_control_offer_v1* offe
     }
 
     pending_offer_add_mimetype(offer, mime_type);
-
-    //debug("got MIME type offer: %s\n", mime_type);
 }
 
 const struct zwlr_data_control_offer_v1_listener data_control_offer_listener = {
