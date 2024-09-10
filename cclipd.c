@@ -106,6 +106,37 @@ size_t sanitise_string(char* str) {
     return write;
 }
 
+size_t lstrip(char* str) {
+    /*
+     * removes leading whitespace from str
+     * returns modified string length
+     */
+    if (str == NULL) {
+        return 0;
+    }
+
+    size_t read = 0;
+    size_t write = 0;
+    bool non_whitespace_found = false;
+
+    while (str[read] != '\0') {
+        if (isspace((unsigned char)str[read]) && !non_whitespace_found) {
+            read += 1;
+        } else {
+            non_whitespace_found = true;
+
+            str[write] = str[read];
+            write += 1;
+            read += 1;
+        }
+    }
+
+    /* dont forget the null terminator */
+    str[write] = '\0';
+
+    return write;
+}
+
 char* generate_preview(const void* const data, const int64_t data_size,
                        const char* const mime_type) {
     char* preview = calloc(PREVIEW_LEN, sizeof(char));
@@ -114,9 +145,9 @@ char* generate_preview(const void* const data, const int64_t data_size,
     }
 
     if (fnmatch("*text*", mime_type, 0) == 0) {
-        /* TODO: strip whitespace from the beginning of preview */
         strncpy(preview, data, min(data_size, PREVIEW_LEN));
         sanitise_string(preview);
+        lstrip(preview);
     } else {
         snprintf(preview, PREVIEW_LEN, "%s | %" PRIi64 " bytes", mime_type, data_size);
     }
