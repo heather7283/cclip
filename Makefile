@@ -1,8 +1,6 @@
 CC = clang
 CFLAGS = -Wall -Wextra -Wpedantic -Wno-unused-parameter -Og -g
 
-INIH_FLAGS = -DINI_ALLOW_MULTILINE=0 -DINI_STOP_ON_FIRST_ERROR=1
-
 VERSION != ver="$$(git describe --long)"; [ -n "$$ver" ] && printf "$$ver" | sed 's/\([^-]*-g\)/r\1/;s/-/./g' || printf 0.0.0
 
 all: cclipd cclip
@@ -40,10 +38,7 @@ protocol/wlr-data-control-unstable-v1.c: protocol/wlr-data-control-unstable-v1.x
 protocol/wlr-data-control-unstable-v1-client-protocol.h: protocol/wlr-data-control-unstable-v1.xml
 	wayland-scanner client-header $< $@
 
-inih/ini.o: inih/ini.c inih/ini.h
-	$(CC) $(CFLAGS) $(INIH_FLAGS) -c $< -o $@
-
 clean:
-	rm -vf *.o cclipd protocol/*.[och] inih/ini.o
+	rm -vf *.o cclipd protocol/*.[och]
 
 .PHONY: all clean
