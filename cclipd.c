@@ -343,12 +343,8 @@ void print_help_and_exit(int exit_status) {
 void parse_command_line(void) {
     int opt;
 
-    while ((opt = getopt(argc, argv, ":c:d:t:s:pvVh")) != -1) {
+    while ((opt = getopt(argc, argv, ":d:t:s:pvVh")) != -1) {
         switch (opt) {
-        case 'c':
-            debug("config file path supplied on command line: %s\n", optarg);
-            config.config_file_path = strdup(optarg);
-            break;
         case 'd':
             debug("db file path supplied on command line: %s\n", optarg);
             config.db_path = strdup(optarg);

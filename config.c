@@ -17,7 +17,6 @@ struct config config = {
     .accepted_mime_types = NULL,
     .min_data_size = 1,
     .db_path = NULL,
-    .config_file_path = NULL,
     .primary_selection = false,
 };
 
@@ -42,33 +41,9 @@ static char* get_default_db_path(void) {
     return db_path;
 }
 
-static char* get_default_config_path(void) {
-    char* config_path = malloc(MAX_PATH_LENGTH * sizeof(char));
-    if (config_path == NULL) {
-        die("failed to allocate memory for config path string\n");
-    }
-
-    char* xdg_config_home = getenv("XDG_CONFIG_HOME");
-    if (xdg_config_home != NULL) {
-        snprintf(config_path, MAX_PATH_LENGTH, "%s/%s", xdg_config_home, "cclip/cclipd.ini");
-    } else {
-        char* home = getenv("HOME");
-        if (home == NULL) {
-            die("both HOME and XDG_CONFIG_HOME are unset, unable to determine config file path\n");
-        }
-        snprintf(config_path, MAX_PATH_LENGTH, "%s/.config/%s", home, "cclip/cclipd.ini");
-    }
-
-    debug("setting default config path: %s\n", config_path);
-    return config_path;
-}
-
 void config_set_default_values(void) {
     if (config.db_path == NULL) {
         config.db_path = get_default_db_path();
-    }
-    if (config.config_file_path == NULL) {
-        config.config_file_path = get_default_config_path();
     }
     if (config.accepted_mime_types == NULL) {
         config.accepted_mime_types = malloc(sizeof(char*) * 1);
