@@ -7,7 +7,7 @@ VERSION != ver="$$(git describe --long)"; [ -n "$$ver" ] && printf "$$ver" | sed
 
 all: cclipd cclip
 
-cclipd: cclipd.o db.o common.o wayland.o pending_offers.o config.o protocol/wlr-data-control-unstable-v1.o
+cclipd: cclipd.o db.o wayland.o pending_offers.o config.o protocol/wlr-data-control-unstable-v1.o
 	$(CC) $(LDFLAGS) $^ -lwayland-client -lsqlite3 -o $@
 
 cclipd.o: cclipd.c protocol/wlr-data-control-unstable-v1-client-protocol.h common.h
@@ -23,9 +23,6 @@ db.o: db.c db.h common.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
 config.o: config.c config.h common.h
-	$(CC) $(CFLAGS) -c $< -o $@
-
-common.o: common.c common.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
 wayland.o: wayland.c wayland.h common.h
