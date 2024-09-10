@@ -26,6 +26,11 @@ char** argv;
 char* prog_name;
 
 char* pick_mime_type(unsigned int mime_types_len, char** mime_types) {
+    /*
+     * finds first offered mime type that matches
+     * or returns NULL if none matched
+     * yes it is O(n^2) I do not care
+     */
     for (int i = 0; i < config.accepted_mime_types_len; i++) {
         for (unsigned int j = 0; j < mime_types_len; j++) {
             char* pattern = config.accepted_mime_types[i];
@@ -109,6 +114,7 @@ char* generate_preview(const void* const data, const int64_t data_size,
     }
 
     if (fnmatch("*text*", mime_type, 0) == 0) {
+        /* TODO: strip whitespace from the beginning of preview */
         strncpy(preview, data, min(data_size, PREVIEW_LEN));
         sanitise_string(preview);
     } else {
@@ -119,37 +125,40 @@ char* generate_preview(const void* const data, const int64_t data_size,
 }
 
 void insert_db_entry(struct db_entry* entry) {
-    /* Prepare the SQL statement */
+    sqlite3_stmt* stmt = NULL;
+    int retcode;
+
+    /* prepare the SQL statement */
     const char* insert_statement =
         "INSERT OR REPLACE INTO history "
         "(data, data_size, preview, mime_type, timestamp) "
         "VALUES (?, ?, ?, ?, ?)";
-    sqlite3_stmt* stmt;
-    int ret_code = sqlite3_prepare_v2(db, insert_statement, -1, &stmt, NULL);
-    if (ret_code != SQLITE_OK) {
+    retcode = sqlite3_prepare_v2(db, insert_statement, -1, &stmt, NULL);
+    if (retcode != SQLITE_OK) {
         die("%s\n", sqlite3_errmsg(db));
     }
 
-    /* Bind parameters */
+    /* bind parameters */
     sqlite3_bind_blob(stmt, 1, entry->data, entry->data_size, SQLITE_STATIC);
     sqlite3_bind_int64(stmt, 2, entry->data_size);
     sqlite3_bind_text(stmt, 3, entry->preview, -1, SQLITE_STATIC);
     sqlite3_bind_text(stmt, 4, entry->mime_type, -1, SQLITE_STATIC);
     sqlite3_bind_int64(stmt, 5, entry->creation_time);
 
-    /* Execute the statement */
-    ret_code = sqlite3_step(stmt);
-    if (ret_code != SQLITE_DONE) {
+    /* execute the statement */
+    retcode = sqlite3_step(stmt);
+    if (retcode != SQLITE_DONE) {
         die("%s\n", sqlite3_errmsg(db));
     } else {
         debug("record inserted successfully\n");
     }
 
-    /* Finalize the statement */
+    /* finalize the statement */
     sqlite3_finalize(stmt);
 }
 
 size_t receive_data(char** buffer, struct zwlr_data_control_offer_v1* offer, char* mime_type) {
+    /* reads offer into buffer, returns number of bytes read */
     debug("start receiving offer...\n");
 
     int pipes[2];
@@ -161,6 +170,7 @@ size_t receive_data(char** buffer, struct zwlr_data_control_offer_v1* offer, cha
     wl_display_roundtrip(display);
     close(pipes[1]);
 
+    /* is it really a good idea to multiply buffer size by 2 every time? */
     const size_t INITIAL_BUFFER_SIZE = 1024;
     const int GROWTH_FACTOR = 2;
 

@@ -6,6 +6,12 @@
 #include "pending_offers.h"
 #include "common.h"
 
+/*
+ * THIS IS A HORRIBLE MESS
+ * I hate this so much lol, this needs to be redone from scratch
+ * but I guess if it works it works :haha
+ */
+
 struct pending_offer* pending_offers = NULL;
 
 struct pending_offer* find_pending_offer(const struct zwlr_data_control_offer_v1* offer) {
