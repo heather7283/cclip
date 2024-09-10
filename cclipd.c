@@ -297,7 +297,10 @@ out:
     zwlr_data_control_offer_v1_destroy(offer);
 }
 
-void mime_type_offer_handler(void* data, struct zwlr_data_control_offer_v1* offer, const char* mime_type) {
+void mime_type_offer_handler(void* data, struct zwlr_data_control_offer_v1* offer,
+                             const char* mime_type) {
+    UNUSED(data);
+
     if (offer == NULL) {
         warn("offer is NULL!\n");
         return;
@@ -310,13 +313,21 @@ const struct zwlr_data_control_offer_v1_listener data_control_offer_listener = {
 	.offer = mime_type_offer_handler,
 };
 
-void data_offer_handler(void* data, struct zwlr_data_control_device_v1* device, struct zwlr_data_control_offer_v1* offer) {
+void data_offer_handler(void* data, struct zwlr_data_control_device_v1* device,
+                        struct zwlr_data_control_offer_v1* offer) {
+    UNUSED(data);
+    UNUSED(device);
+
     add_pending_offer(offer);
 
 	zwlr_data_control_offer_v1_add_listener(offer, &data_control_offer_listener, NULL);
 }
 
-void selection_handler(void* data, struct zwlr_data_control_device_v1* device, struct zwlr_data_control_offer_v1* offer) {
+void selection_handler(void* data, struct zwlr_data_control_device_v1* device,
+                       struct zwlr_data_control_offer_v1* offer) {
+    UNUSED(data);
+    UNUSED(device);
+
     if (offer == NULL) {
         warn("offer is NULL!\n");
         return;
@@ -325,7 +336,11 @@ void selection_handler(void* data, struct zwlr_data_control_device_v1* device, s
     receive(offer);
 }
 
-void primary_selection_handler(void* data, struct zwlr_data_control_device_v1* device, struct zwlr_data_control_offer_v1* offer) {
+void primary_selection_handler(void* data, struct zwlr_data_control_device_v1* device,
+                               struct zwlr_data_control_offer_v1* offer) {
+    UNUSED(data);
+    UNUSED(device);
+
     if (!config.primary_selection) {
         return;
     }

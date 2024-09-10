@@ -12,7 +12,11 @@ int argc;
 char** argv;
 char* prog_name;
 
-int print_row(void* _, int argc, char** argv, char** column_names) {
+int print_row(void* data, int argc, char** argv, char** column_names) {
+    UNUSED(data);
+    UNUSED(argc);
+    UNUSED(column_names);
+
     printf("%s\t%s\t%s\n", argv[0], argv[1], argv[2]);
     return 0;
 }

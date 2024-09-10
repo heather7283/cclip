@@ -13,5 +13,7 @@
 #define min(a, b) a < b ? a : b
 #define max(a, b) a > b ? a : b
 
+#define UNUSED(var) (void)var /* https://stackoverflow.com/a/3599170 */
+
 #endif /* #ifndef COMMON_H */
 

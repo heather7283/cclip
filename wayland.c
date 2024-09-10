@@ -33,7 +33,11 @@ static const struct wl_seat_listener seat_listener = {
 };
 */
 
-static void registry_global(void* data, struct wl_registry* registry, uint32_t name, const char* interface, uint32_t version) {
+static void registry_global(void* data, struct wl_registry* registry, uint32_t name,
+                            const char* interface, uint32_t version) {
+    UNUSED(data);
+    UNUSED(version);
+
 	if (!seat_found && strcmp(interface, "wl_seat") == 0) {
 		seat = wl_registry_bind(registry, name, &wl_seat_interface, 2);
 		seat_found = true;
@@ -42,7 +46,11 @@ static void registry_global(void* data, struct wl_registry* registry, uint32_t n
 	}
 }
 
-static void registry_global_remove(void* data, struct wl_registry* registry, uint32_t name) {}
+static void registry_global_remove(void* data, struct wl_registry* registry, uint32_t name) {
+    UNUSED(data);
+    UNUSED(registry);
+    UNUSED(name);
+}
 
 const struct wl_registry_listener registry_listener = {
 	.global = registry_global,
