@@ -17,6 +17,6 @@ struct db_entry {
 };
 
 /* initialises empty db if db is not found */
-int db_init(char* db_path);
+int db_init(const char* const db_path);
 
 #endif /* #ifndef DB_H */
