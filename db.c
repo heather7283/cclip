@@ -11,7 +11,7 @@
 
 struct sqlite3* db = NULL;
 
-sqlite3* db_init(const char* const db_path) {
+void db_init(const char* const db_path) {
     char* errmsg = NULL;
     int ret_code = 0;
 
@@ -54,6 +54,4 @@ sqlite3* db_init(const char* const db_path) {
     if (ret_code != SQLITE_OK) {
         die("sqlite error: %s\n", errmsg);
     }
-
-    return db;
 }
