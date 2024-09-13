@@ -36,7 +36,6 @@ char* pick_mime_type(unsigned int mime_types_len, char** mime_types) {
             char* pattern = config.accepted_mime_types[i];
             char* string = mime_types[j];
 
-            debug("matching %s against %s\n", string, pattern);
             if (fnmatch(pattern, string, 0) == 0) {
                 debug("selected mime type: %s\n", string);
                 return strdup(string);
@@ -182,6 +181,7 @@ void insert_db_entry(struct db_entry* entry) {
         die("%s\n", sqlite3_errmsg(db));
     } else {
         debug("record inserted successfully\n");
+        debug("============================\n");
     }
 
     /* finalize the statement */
@@ -297,9 +297,15 @@ out:
     zwlr_data_control_offer_v1_destroy(offer);
 }
 
+/*
+ * Sent immediately after creating the wlr_data_control_offer object.
+ * One event per offered MIME type.
+ */
 void mime_type_offer_handler(void* data, struct zwlr_data_control_offer_v1* offer,
                              const char* mime_type) {
     UNUSED(data);
+
+    debug("got mime type offer event for offer %p\n", offer);
 
     if (offer == NULL) {
         warn("offer is NULL!\n");
@@ -313,20 +319,48 @@ const struct zwlr_data_control_offer_v1_listener data_control_offer_listener = {
 	.offer = mime_type_offer_handler,
 };
 
+/*
+ * The data_offer event introduces a new wlr_data_control_offer object,
+ * which will subsequently be used in either the
+ * wlr_data_control_device.selection event (for the regular clipboard
+ * selections) or the wlr_data_control_device.primary_selection event (for
+ * the primary clipboard selections). Immediately following the
+ * wlr_data_control_device.data_offer event, the new data_offer object
+ * will send out wlr_data_control_offer.offer events to describe the MIME
+ * types it offers.
+ */
 void data_offer_handler(void* data, struct zwlr_data_control_device_v1* device,
                         struct zwlr_data_control_offer_v1* offer) {
     UNUSED(data);
     UNUSED(device);
+
+    debug("got new offer %p\n", offer);
 
     add_pending_offer(offer);
 
 	zwlr_data_control_offer_v1_add_listener(offer, &data_control_offer_listener, NULL);
 }
 
+/*
+ * The selection event is sent out to notify the client of a new
+ * wlr_data_control_offer for the selection for this device. The
+ * wlr_data_control_device.data_offer and the wlr_data_control_offer.offer
+ * events are sent out immediately before this event to introduce the data
+ * offer object. The selection event is sent to a client when a new
+ * selection is set. The wlr_data_control_offer is valid until a new
+ * wlr_data_control_offer or NULL is received. The client must destroy the
+ * previous selection wlr_data_control_offer, if any, upon receiving this
+ * event.
+ *
+ * The first selection event is sent upon binding the
+ * wlr_data_control_device object.
+ */
 void selection_handler(void* data, struct zwlr_data_control_device_v1* device,
                        struct zwlr_data_control_offer_v1* offer) {
     UNUSED(data);
     UNUSED(device);
+
+    debug("got selection event for offer %p\n", offer);
 
     if (offer == NULL) {
         warn("offer is NULL!\n");
@@ -336,10 +370,27 @@ void selection_handler(void* data, struct zwlr_data_control_device_v1* device,
     receive(offer);
 }
 
+/*
+ * The primary_selection event is sent out to notify the client of a new
+ * wlr_data_control_offer for the primary selection for this device. The
+ * wlr_data_control_device.data_offer and the wlr_data_control_offer.offer
+ * events are sent out immediately before this event to introduce the data
+ * offer object. The primary_selection event is sent to a client when a
+ * new primary selection is set. The wlr_data_control_offer is valid until
+ * a new wlr_data_control_offer or NULL is received. The client must
+ * destroy the previous primary selection wlr_data_control_offer, if any,
+ * upon receiving this event.
+ *
+ * If the compositor supports primary selection, the first
+ * primary_selection event is sent upon binding the
+ * wlr_data_control_device object.
+ */
 void primary_selection_handler(void* data, struct zwlr_data_control_device_v1* device,
                                struct zwlr_data_control_offer_v1* offer) {
     UNUSED(data);
     UNUSED(device);
+
+    debug("got primary selection event for offer %p\n", offer);
 
     if (!config.primary_selection) {
         return;

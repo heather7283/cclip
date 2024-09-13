@@ -38,13 +38,18 @@ static struct pending_offer* find_last_pending_offer(void) {
     struct pending_offer* pending_offer = pending_offers;
     bool found = false;
 
+    int counter = 0;
+
     while (pending_offer != NULL) {
         if (pending_offer->previous == NULL) {
             found = true;
             break;
         }
         pending_offer = pending_offer->previous;
+        counter += 1;
     }
+
+    debug("count of pending offers: %d\n", counter);
 
     if (found == false) {
         die("did not find last offer in pending offers list, "

@@ -49,8 +49,21 @@ void db_init(const char* const db_path) {
         "    mime_type TEXT    NOT NULL,"
         "    timestamp INTEGER NOT NULL"
         ")";
-
     ret_code = sqlite3_exec(db, db_create_expr, NULL, NULL, &errmsg);
+    if (ret_code != SQLITE_OK) {
+        die("sqlite error: %s\n", errmsg);
+    }
+
+    const char* db_create_data_index_expr =
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_history_data ON history(data)";
+    ret_code = sqlite3_exec(db, db_create_data_index_expr, NULL, NULL, &errmsg);
+    if (ret_code != SQLITE_OK) {
+        die("sqlite error: %s\n", errmsg);
+    }
+
+    const char* db_create_timestamp_index_expr =
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_history_timestamp ON history(timestamp)";
+    ret_code = sqlite3_exec(db, db_create_timestamp_index_expr, NULL, NULL, &errmsg);
     if (ret_code != SQLITE_OK) {
         die("sqlite error: %s\n", errmsg);
     }

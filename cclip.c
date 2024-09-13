@@ -25,7 +25,7 @@ void list(void) {
     /* TODO: maybe allow user to specify which fields to output? */
     char* errmsg = NULL;
     int retcode;
-    const char* sql = "SELECT rowid,mime_type,preview FROM history ORDER BY rowid DESC";
+    const char* sql = "SELECT rowid,mime_type,preview FROM history ORDER BY timestamp DESC";
 
     retcode = sqlite3_exec(db, sql, print_row, NULL, &errmsg);
     if (retcode != SQLITE_OK) {
