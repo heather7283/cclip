@@ -42,7 +42,6 @@ void db_init(const char* const db_path) {
 
     const char* db_create_expr =
         "CREATE TABLE IF NOT EXISTS history ("
-        "    id        INTEGER PRIMARY KEY,"
         "    data      BLOB    NOT NULL UNIQUE,"
         "    data_size INTEGER NOT NULL,"
         "    preview   TEXT    NOT NULL,"
