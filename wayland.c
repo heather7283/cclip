@@ -61,12 +61,12 @@ const struct wl_registry_listener registry_listener = {
 void wayland_init(void) {
 	display = wl_display_connect(NULL);
 	if (display == NULL) {
-		die("failed to connect to display");
+		die("failed to connect to display\n");
     }
 
 	registry = wl_display_get_registry(display);
 	if (registry == NULL) {
-		die("failed to get registry");
+		die("failed to get registry\n");
     }
 
 	wl_registry_add_listener(registry, &registry_listener, NULL);
@@ -74,15 +74,15 @@ void wayland_init(void) {
 	wl_display_roundtrip(display);
 
 	if (seat == NULL) {
-		die("failed to bind to seat interface");
+		die("failed to bind to seat interface\n");
     }
 
 	if (data_control_manager == NULL) {
-		die("failed to bind to data_control_manager interface");
+		die("failed to bind to data_control_manager interface\n");
     }
 
 	data_control_device = zwlr_data_control_manager_v1_get_data_device(data_control_manager, seat);
     if (data_control_device == NULL) {
-		die("data device is null");
+		die("data device is null\n");
     }
 }
