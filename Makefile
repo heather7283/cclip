@@ -1,5 +1,4 @@
-CC = clang
-CFLAGS = -Wall -Wextra -Wpedantic -Wno-unused-parameter -Og -g
+CFLAGS = -Wall -Wextra -Wpedantic -Og -g
 
 VERSION != ver="$$(git describe --long)"; [ -n "$$ver" ] && printf "$$ver" | sed 's/\([^-]*-g\)/r\1/;s/-/./g' || printf 0.0.0
 
