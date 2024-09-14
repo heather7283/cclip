@@ -13,7 +13,7 @@ struct db_entry {
     int64_t data_size; /* size of data in bytes */
     char* preview; /* string */
     char* mime_type; /* string */
-    time_t creation_time; /* unix seconds */
+    time_t timestamp; /* unix seconds */
 };
 
 /* initialises empty db if db is not found */

@@ -187,7 +187,7 @@ void insert_db_entry(struct db_entry* entry) {
     sqlite3_bind_int64(stmt, 2, entry->data_size);
     sqlite3_bind_text(stmt, 3, entry->preview, -1, SQLITE_STATIC);
     sqlite3_bind_text(stmt, 4, entry->mime_type, -1, SQLITE_STATIC);
-    sqlite3_bind_int64(stmt, 5, entry->creation_time);
+    sqlite3_bind_int64(stmt, 5, entry->timestamp);
 
     /* execute the statement */
     retcode = sqlite3_step(stmt);
@@ -264,8 +264,6 @@ void receive(struct zwlr_data_control_offer_v1* offer) {
     char* buffer = NULL;
     struct db_entry* new_entry = NULL;
 
-    time_t timestamp = time(NULL);
-
     mime_type = strdup(pick_mime_type());
 
     if (mime_type == NULL) {
@@ -290,10 +288,12 @@ void receive(struct zwlr_data_control_offer_v1* offer) {
         die("failed to allocate memory for db_entry struct\n");
     }
 
+    time_t timestamp = time(NULL);
+
     new_entry->data = buffer;
     new_entry->data_size = bytes_read;
     new_entry->mime_type = mime_type;
-    new_entry->creation_time = timestamp;
+    new_entry->timestamp = timestamp;
     new_entry->preview = generate_preview(buffer, bytes_read, mime_type);
 
     insert_db_entry(new_entry);
