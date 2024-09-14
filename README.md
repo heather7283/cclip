@@ -30,7 +30,7 @@ By default `make` produces build optimised for debugging. If you wish to save a 
 make clean
 make CFLAGS='-O3 -march=native`
 ```
-To have cclipd and cclip binaries available system-wide, copy them do a directory in your PATH, for example /usr/local/bin
+To have cclipd and cclip binaries available system-wide, copy them to a directory in your PATH, for example /usr/local/bin
 
 ## Usage
 > [!IMPORTANT]
