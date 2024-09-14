@@ -319,7 +319,7 @@ void mime_type_offer_handler(void* data, struct zwlr_data_control_offer_v1* offe
                              const char* mime_type) {
     UNUSED(data);
 
-    debug("got mime type offer %s for offer %p\n", mime_type, offer);
+    debug("got mime type offer %s for offer %p\n", mime_type, (void*)offer);
 
     if (offer == NULL) {
         warn("offer is NULL!\n");
@@ -354,7 +354,7 @@ void data_offer_handler(void* data, struct zwlr_data_control_device_v1* device,
     UNUSED(data);
     UNUSED(device);
 
-    debug("got new wlr_data_control_offer %p\n", offer);
+    debug("got new wlr_data_control_offer %p\n", (void*)offer);
 
     free_offered_mime_types();
 
@@ -380,7 +380,7 @@ void selection_handler(void* data, struct zwlr_data_control_device_v1* device,
     UNUSED(data);
     UNUSED(device);
 
-    debug("got selection event for offer %p\n", offer);
+    debug("got selection event for offer %p\n", (void*)offer);
 
     if (offer == NULL) {
         warn("offer is NULL!\n");
@@ -410,7 +410,7 @@ void primary_selection_handler(void* data, struct zwlr_data_control_device_v1* d
     UNUSED(data);
     UNUSED(device);
 
-    debug("got primary selection event for offer %p\n", offer);
+    debug("got primary selection event for offer %p\n", (void*)offer);
 
     if (!config.primary_selection) {
         return;
