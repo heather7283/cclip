@@ -287,9 +287,7 @@ void receive(struct zwlr_data_control_offer_v1* offer) {
     new_entry->data_size = bytes_read;
     new_entry->mime_type = mime_type;
     new_entry->creation_time = timestamp;
-    new_entry->preview = generate_preview(new_entry->data,
-                                          new_entry->data_size,
-                                          new_entry->mime_type);
+    new_entry->preview = generate_preview(buffer, bytes_read, mime_type);
 
     insert_db_entry(new_entry);
 out:
