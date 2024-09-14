@@ -12,7 +12,6 @@
 #include "wayland.h"
 #include "common.h"
 #include "db.h"
-#include "pending_offers.h"
 #include "config.h"
 
 #define PREVIEW_LEN 128
@@ -25,24 +24,37 @@ int argc;
 char** argv;
 char* prog_name;
 
-char* pick_mime_type(unsigned int mime_types_len, char** mime_types) {
+/* surely nobody will offer more than 32 mime types */
+#define OFFERED_MIME_TYPES_LEN 32
+char* offered_mime_types[OFFERED_MIME_TYPES_LEN];
+int offered_mime_types_count = 0;
+
+char* pick_mime_type(void) {
     /*
      * finds first offered mime type that matches
      * or returns NULL if none matched
      * yes it is O(n^2) I do not care
      */
     for (int i = 0; i < config.accepted_mime_types_len; i++) {
-        for (unsigned int j = 0; j < mime_types_len; j++) {
+        for (int j = 0; j < offered_mime_types_count; j++) {
             char* pattern = config.accepted_mime_types[i];
-            char* string = mime_types[j];
+            char* type = offered_mime_types[j];
 
-            if (fnmatch(pattern, string, 0) == 0) {
-                debug("selected mime type: %s\n", string);
-                return strdup(string);
+            if (fnmatch(pattern, type, 0) == 0) {
+                debug("selected mime type: %s\n", type);
+                return type;
             }
         }
     }
     return NULL;
+}
+
+void free_offered_mime_types(void) {
+    debug("freeing string in offered_mime_types array\n");
+    while (offered_mime_types_count > 0) {
+        offered_mime_types_count -= 1;
+        free(offered_mime_types[offered_mime_types_count]);
+    }
 }
 
 size_t sanitise_string(char* str) {
@@ -198,6 +210,7 @@ size_t receive_data(char** buffer, struct zwlr_data_control_offer_v1* offer, cha
     }
 
     zwlr_data_control_offer_v1_receive(offer, mime_type, pipes[1]);
+    /* AFTER THIS LINE WE WILL GET NEW OFFER!!! */
     wl_display_roundtrip(display);
     close(pipes[1]);
 
@@ -243,14 +256,10 @@ void receive(struct zwlr_data_control_offer_v1* offer) {
     char* mime_type = NULL;
     char* buffer = NULL;
     struct db_entry* new_entry = NULL;
-    struct pending_offer* pending_offer = NULL;
 
     time_t timestamp = time(NULL);
 
-    pending_offer = find_pending_offer(offer);
-    mime_type = pick_mime_type(pending_offer->data->mime_types_len,
-                               pending_offer->data->mime_types);
-    delete_pending_offer(offer);
+    mime_type = strdup(pick_mime_type());
 
     if (mime_type == NULL) {
         debug("didn't match any mime type, not receiving this offer\n");
@@ -312,7 +321,12 @@ void mime_type_offer_handler(void* data, struct zwlr_data_control_offer_v1* offe
         return;
     }
 
-    pending_offer_add_mimetype(offer, mime_type);
+    if (offered_mime_types_count >= OFFERED_MIME_TYPES_LEN) {
+        warn("offered_mime_types array is full, but another mime type was received! %s\n", mime_type);
+    } else {
+        offered_mime_types[offered_mime_types_count] = strdup(mime_type);
+        offered_mime_types_count += 1;
+    }
 }
 
 const struct zwlr_data_control_offer_v1_listener data_control_offer_listener = {
@@ -336,7 +350,7 @@ void data_offer_handler(void* data, struct zwlr_data_control_device_v1* device,
 
     debug("got new offer %p\n", offer);
 
-    add_pending_offer(offer);
+    free_offered_mime_types();
 
 	zwlr_data_control_offer_v1_add_listener(offer, &data_control_offer_listener, NULL);
 }
