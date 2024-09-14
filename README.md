@@ -17,7 +17,7 @@ cclip was heavily inspired by [cliphist](https://github.com/sentriz/cliphist) an
 
 ## Building
 > [!NOTE]
-> cclip has 2 run- and build-time dependencies: **libwayland-client** and **libsqlite3**. Make sure you have them installed before proceeding. You also need GNU make and not ancient C compiler.
+> Make sure you have **libwayland-client**, **libsqlite3** and **wayland-scanner** installed before proceeding. You also need GNU make and not ancient C compiler.
 
 Building cclip is as simple as running `make`:
 ```
