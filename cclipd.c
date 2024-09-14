@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <time.h> /* time */
+#include <time.h>
 #include <fnmatch.h>
 #include <ctype.h> /* isspace, isprint */
 
@@ -163,6 +163,8 @@ char* generate_preview(const void* const data, const int64_t data_size,
         snprintf(preview, PREVIEW_LEN, "%s | %" PRIi64 " bytes", mime_type, data_size);
     }
 
+    debug("generated preview: %s\n", preview);
+
     return preview;
 }
 
@@ -193,11 +195,16 @@ void insert_db_entry(struct db_entry* entry) {
         die("%s\n", sqlite3_errmsg(db));
     } else {
         debug("record inserted successfully\n");
-        debug("============================\n");
     }
 
     /* finalize the statement */
-    sqlite3_finalize(stmt);
+    retcode = sqlite3_finalize(stmt);
+    if (retcode != SQLITE_OK) {
+        die("%s\n", sqlite3_errmsg(db));
+    } else {
+        debug("sqlite statement finalised\n");
+        debug("============================\n");
+    }
 }
 
 size_t receive_data(char** buffer, struct zwlr_data_control_offer_v1* offer, char* mime_type) {
@@ -312,7 +319,7 @@ void mime_type_offer_handler(void* data, struct zwlr_data_control_offer_v1* offe
                              const char* mime_type) {
     UNUSED(data);
 
-    debug("got mime type offer event for offer %p\n", offer);
+    debug("got mime type offer %s for offer %p\n", mime_type, offer);
 
     if (offer == NULL) {
         warn("offer is NULL!\n");
@@ -320,7 +327,8 @@ void mime_type_offer_handler(void* data, struct zwlr_data_control_offer_v1* offe
     }
 
     if (offered_mime_types_count >= OFFERED_MIME_TYPES_LEN) {
-        warn("offered_mime_types array is full, but another mime type was received! %s\n", mime_type);
+        warn("offered_mime_types array is full, "
+             "but another mime type was received! %s\n", mime_type);
     } else {
         offered_mime_types[offered_mime_types_count] = strdup(mime_type);
         offered_mime_types_count += 1;
@@ -346,7 +354,7 @@ void data_offer_handler(void* data, struct zwlr_data_control_device_v1* device,
     UNUSED(data);
     UNUSED(device);
 
-    debug("got new offer %p\n", offer);
+    debug("got new wlr_data_control_offer %p\n", offer);
 
     free_offered_mime_types();
 
@@ -527,6 +535,7 @@ int main(int _argc, char** _argv) {
                                              NULL);
 
 	wl_display_roundtrip(display);
+    /* TODO: signal handling */
     while (wl_display_dispatch(display) != -1) {
         /* main event loop */
     }
