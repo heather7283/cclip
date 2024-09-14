@@ -36,6 +36,6 @@ protocol/wlr-data-control-unstable-v1-client-protocol.h: protocol/wlr-data-contr
 	wayland-scanner client-header $< $@
 
 clean:
-	rm -vf *.o cclipd protocol/*.[och]
+	rm -vf *.o cclipd cclip protocol/*.[och]
 
 .PHONY: all clean
