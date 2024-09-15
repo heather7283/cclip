@@ -188,6 +188,43 @@ char* generate_preview(const void* const data, const int64_t data_size,
 void insert_db_entry(struct db_entry* entry) {
     sqlite3_stmt* stmt = NULL;
     int retcode;
+    char* errmsg;
+    int entries_count = -1;
+
+    /* something something atomic */
+    retcode = sqlite3_exec(db, "BEGIN TRANSACTION", NULL, NULL, &errmsg);
+    if (retcode != SQLITE_OK) {
+        critical("sqlite error: %s\n", errmsg);
+        goto rollback;
+    }
+
+    /* find out how many entries are currently in db */
+    const char* count_query =
+        "SELECT COUNT(*) FROM history";
+    retcode = sqlite3_prepare_v2(db, count_query, -1, &stmt, NULL);
+    if (retcode != SQLITE_OK) {
+        die("sqlite error: %s\n", sqlite3_errmsg(db));
+    }
+    retcode = sqlite3_step(stmt);
+    if (retcode == SQLITE_ROW) {
+        entries_count = sqlite3_column_int(stmt, 0);
+    } else {
+        critical("sqlite error: %s\n", sqlite3_errstr(retcode));
+        goto rollback;
+    }
+    sqlite3_finalize(stmt);
+
+    /* delete oldest */
+    if (entries_count > config.max_entries_count) {
+        debug("deleting oldest entry\n");
+        const char* delete_statement =
+            "DELETE FROM history WHERE timestamp=(SELECT MIN(timestamp) FROM history)";
+        retcode = sqlite3_exec(db, delete_statement, NULL, NULL, &errmsg);
+        if (retcode != SQLITE_OK) {
+            critical("sqlite error: %s\n", errmsg);
+            goto rollback;
+        }
+    }
 
     /* prepare the SQL statement */
     const char* insert_statement =
@@ -196,7 +233,7 @@ void insert_db_entry(struct db_entry* entry) {
         "VALUES (?, ?, ?, ?, ?)";
     retcode = sqlite3_prepare_v2(db, insert_statement, -1, &stmt, NULL);
     if (retcode != SQLITE_OK) {
-        die("%s\n", sqlite3_errmsg(db));
+        die("sqlite error: %s\n", sqlite3_errmsg(db));
     }
 
     /* bind parameters */
@@ -209,18 +246,26 @@ void insert_db_entry(struct db_entry* entry) {
     /* execute the statement */
     retcode = sqlite3_step(stmt);
     if (retcode != SQLITE_DONE) {
-        die("%s\n", sqlite3_errmsg(db));
+        critical("sqlite error: %s\n", sqlite3_errmsg(db));
+        goto rollback;
     } else {
         debug("record inserted successfully\n");
     }
+    sqlite3_finalize(stmt);
 
-    /* finalize the statement */
-    retcode = sqlite3_finalize(stmt);
+    retcode = sqlite3_exec(db, "COMMIT", NULL, NULL, &errmsg);
     if (retcode != SQLITE_OK) {
-        die("%s\n", sqlite3_errmsg(db));
+        critical("sqlite error: %s\n", sqlite3_errmsg(db));
+        goto rollback;
+    }
+    return;
+
+rollback:
+    retcode = sqlite3_exec(db, "ROLLBACK", NULL, NULL, &errmsg);
+    if (retcode != SQLITE_OK) {
+        die("sqlite error: %s\n", errmsg);
     } else {
-        debug("sqlite statement finalised\n");
-        debug("============================\n");
+        exit(1);
     }
 }
 
@@ -457,7 +502,7 @@ void print_help_and_exit(int exit_status) {
         "cclipd - clipboard manager daemon\n"
         "\n"
         "usage:\n"
-        "    %s [-vVhp] [-d DB_PATH] [-t PATTERN] [-s SIZE]\n"
+        "    %s [-vVhp] [-d DB_PATH] [-t PATTERN] [-s SIZE] [-c ENTRIES]\n"
         "\n"
         "command line options:\n"
         "    -V            display version and exit\n"
@@ -468,6 +513,7 @@ void print_help_and_exit(int exit_status) {
         "                  can be supplied multiple times\n"
         "    -s SIZE       clipboard entry will only be saved if\n"
         "                  its size in bytes is not less than SIZE\n"
+        "    -c ENTRIES    max count of entries to keep in database\n"
         "    -p            also monitor primary selection\n";
 
     fprintf(stderr, help_string, prog_name);
@@ -477,7 +523,7 @@ void print_help_and_exit(int exit_status) {
 void parse_command_line(void) {
     int opt;
 
-    while ((opt = getopt(argc, argv, ":d:t:s:pvVh")) != -1) {
+    while ((opt = getopt(argc, argv, ":d:t:s:c:pvVh")) != -1) {
         switch (opt) {
         case 'd':
             debug("db file path supplied on command line: %s\n", optarg);
@@ -506,6 +552,12 @@ void parse_command_line(void) {
             config.min_data_size = atoi(optarg);
             if (config.min_data_size < 1) {
                 die("MINSIZE must be a positive integer, got %s\n", optarg);
+            }
+            break;
+        case 'c':
+            config.max_entries_count = atoi(optarg);
+            if (config.max_entries_count < 1) {
+                die("ENTRIES must be a positive integer, got %s\n", optarg);
             }
             break;
         case 'p':

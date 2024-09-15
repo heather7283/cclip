@@ -35,6 +35,7 @@ struct config config = {
     .min_data_size = 1,
     .db_path = NULL,
     .primary_selection = false,
+    .max_entries_count = 1000
 };
 
 static char* get_default_db_path(void) {

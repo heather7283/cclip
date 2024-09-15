@@ -28,6 +28,7 @@ struct config {
     size_t min_data_size;
     char* db_path;
     bool primary_selection;
+    int max_entries_count;
 };
 extern struct config config;
 
