@@ -162,6 +162,25 @@ void print_version_and_exit(void) {
     exit(0);
 }
 
+void wipe(void) {
+    sqlite3_stmt* stmt;
+    int retcode;
+
+    const char* sql = "DELETE FROM history";
+
+    retcode = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+    if (retcode != SQLITE_OK) {
+        die("sqlite error: %s\n", sqlite3_errmsg(db));
+    }
+
+    retcode = sqlite3_step(stmt);
+    if (retcode != SQLITE_DONE) {
+        die("sqlite error: %s\n", sqlite3_errmsg(db));
+    }
+
+    sqlite3_finalize(stmt);
+}
+
 void print_help_and_exit(int exit_status) {
     const char* help_string =
         "cclip - command line interface for cclip database\n"
@@ -253,7 +272,7 @@ int main(int _argc, char** _argv) {
         }
         delete(id);
     } else if (strcmp(action, "wipe") == 0) {
-        die("wipe not implemented yet\n");
+        wipe();
     } else {
         die("invalid action: %s\n", action);
     }
