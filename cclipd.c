@@ -25,7 +25,7 @@
 #include <fnmatch.h>
 #include <ctype.h> /* isspace, isprint */
 
-#include "protocol/wlr-data-control-unstable-v1-client-protocol.h"
+#include <wlr-data-control-unstable-v1-client-protocol.h>
 #include "wayland.h"
 #include "common.h"
 #include "db.h"
@@ -33,8 +33,8 @@
 
 #define PREVIEW_LEN 128
 
-#ifndef VERSION
-#define VERSION "unknown_version"
+#ifndef CCLIP_VERSION
+#define CCLIP_VERSION "uknown_version"
 #endif
 
 int argc;
@@ -493,7 +493,7 @@ const struct zwlr_data_control_device_v1_listener data_control_device_listener =
 };
 
 void print_version_and_exit(void) {
-    fprintf(stderr, "cclipd version %s\n", VERSION);
+    fprintf(stderr, "cclipd version %s\n", CCLIP_VERSION);
     exit(0);
 }
 

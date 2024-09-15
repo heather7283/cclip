@@ -20,7 +20,7 @@
 #include <string.h>
 #include <wayland-client.h>
 
-#include "protocol/wlr-data-control-unstable-v1-client-protocol.h"
+#include <wlr-data-control-unstable-v1-client-protocol.h>
 #include "wayland.h"
 #include "common.h"
 
