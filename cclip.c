@@ -39,11 +39,7 @@ int argc;
 char** argv;
 char* prog_name;
 
-int64_t id = -1;
 char* db_path = NULL;
-char* output_format = NULL;
-bool action_found = false;
-enum { LIST, GET, REMOVE, WIPE } action;
 
 int print_row(void* data, int argc, char** argv, char** column_names) {
     UNUSED(data);
@@ -141,25 +137,21 @@ void print_version_and_exit(void) {
 
 void print_help_and_exit(int exit_status) {
     const char* help_string =
-        "cclip - command line interface for cclipd database\n"
+        "cclip - command line interface for cclip database\n"
         "\n"
         "usage:\n"
-        "    cclip [-Vh] [-d DB_PATH] -l [rowid,timestamp,mime_type,preview,data_size]\n"
-        "    cclip [-Vh] [-d DB_PATH] -g ID\n"
-        "    cclip [-Vh] [-d DB_PATH] -r ID\n"
-        "    cclip [-Vh] [-d DB_PATH] -w\n"
+        "    cclip [-Vh] [-d DB_PATH] ACTION ACTION_ARG\n"
         "\n"
         "command line options:\n"
-        "    -d DP_PATH    path to database file\n"
+        "    -d DB_PATH    specify path to database file\n"
         "    -V            display version and exit\n"
         "    -h            print this help message and exit\n"
         "\n"
         "actions:\n"
-        "    -l(ist)       print list of all saved entries to stdout\n"
-        "                  up to %d comma-separated field names are accepted\n"
-        "    -g(et)        print entry with specified id to stdout\n"
-        "    -r(remove)    delete entry with specified id (not implemented)\n"
-        "    -w(ipe)       delete all entries from database (not implemented)\n";
+        "    list [FIELDS] print list of all saved entries to stdout\n"
+        "    get ID        print entry with specified ID to stdout\n"
+        "    remove ID     delete entry with specified id (NOT IMPLEMENTED)\n"
+        "    wipe          delete all entries from database (NOT IMPLEMENTED)\n";
 
     fprintf(stderr, help_string, LIST_MAX_SELECTED_FIELDS);
     exit(exit_status);
@@ -168,50 +160,10 @@ void print_help_and_exit(int exit_status) {
 void parse_command_line(void) {
     int opt;
 
-    while ((opt = getopt(argc, argv, ":d:l:g:r:wVh")) != -1) {
+    while ((opt = getopt(argc, argv, ":d:Vh")) != -1) {
         switch (opt) {
         case 'd':
             db_path = strdup(optarg);
-            break;
-        case 'l':
-            if (action_found) {
-                die("multiple actions specified at the same time\n");
-            }
-            action = LIST;
-            action_found = true;
-
-            output_format = strdup(optarg);
-            break;
-        case 'g':
-            if (action_found) {
-                die("multiple actions specified at the same time\n");
-            }
-            action = GET;
-            action_found = true;
-
-            id = atoll(optarg);
-            if (id <= 0) {
-                die("id must be valid non-negative integer, got %s\n", optarg);
-            }
-            break;
-        case 'r':
-            if (action_found) {
-                die("multiple actions specified at the same time\n");
-            }
-            action = REMOVE;
-            action_found = true;
-
-            id = atoll(optarg);
-            if (id <= 0) {
-                die("id must be valid non-negative integer, got %s\n", optarg);
-            }
-            break;
-        case 'w':
-            if (action_found) {
-                die("multiple actions specified at the same time\n");
-            }
-            action = WIPE;
-            action_found = true;
             break;
         case 'V':
             print_version_and_exit();
@@ -221,20 +173,9 @@ void parse_command_line(void) {
             break;
         case '?':
             critical("unknown option: %c\n", optopt);
-            print_help_and_exit(1);
             break;
         case ':':
-            if (optopt == 'l') {
-                if (action_found) {
-                    die("multiple actions specified at the same time\n");
-                }
-                action = LIST;
-                action_found = true;
-                break;
-            }
-
             critical("missing arg for %c\n", optopt);
-            print_help_and_exit(1);
             break;
         default:
             die("error while parsing command line options\n");
@@ -249,28 +190,44 @@ int main(int _argc, char** _argv) {
     prog_name = argc > 0 ? argv[0] : "cclip";
 
     parse_command_line();
-    if (!action_found) {
-        critical("no action specified\n");
-        print_help_and_exit(1);
-    }
 
     if (db_path == NULL) {
         db_path = get_default_db_path();
     }
     db_init(db_path, false);
 
-    switch (action) {
-    case LIST:
+    if (argv[optind] == NULL) {
+        die("no action provided\n");
+    }
+    char* action = argv[optind];
+
+    if (strcmp(action, "list") == 0) {
+        char* output_format = NULL;
+        if (argv[optind + 1] != NULL) {
+            output_format = argv[optind + 1];
+        }
         list(output_format);
-        break;
-    case GET:
+    } else if (strcmp(action, "get") == 0) {
+        if (argv[optind + 1] == NULL) {
+            die("no id provided\n");
+        }
+        int64_t id = atoll(argv[optind + 1]);
+        if (id <= 0) {
+            die("id should be a positive integer, got %s\n", argv[optind + 1]);
+        }
         get(id);
-        break;
-    case REMOVE:
-        die("remove is not implemented yet\n");
-        break;
-    case WIPE:
-        die("wipe is not implemented yet\n");
-        break;
+    } else if (strcmp(action, "delete") == 0) {
+        if (argv[optind + 1] == NULL) {
+            die("no id provided\n");
+        }
+        int64_t id = atoll(argv[optind + 1]);
+        if (id <= 0) {
+            die("id should be a positive integer, got %s\n", argv[optind + 1]);
+        }
+        die("delete not implemented yet\n");
+    } else if (strcmp(action, "wipe") == 0) {
+        die("wipe not implemented yet\n");
+    } else {
+        die("invalid action: %s\n", action);
     }
 }

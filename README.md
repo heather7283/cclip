@@ -36,7 +36,7 @@ sudo meson install -C build
 > cclipd uses wlr_data_control_unstable_v1 wayland protocol for clipboard interaction. Your compositor must support it in order for you to use cclip.
 > You can check if your compositor supports wlr_data_control_unstable_v1 [here](https://wayland.app/protocols/wlr-data-control-unstable-v1#compositor-support).
 
-Run `cclipd -h` and `cclip help` for description of command line arguments.
+Run `cclipd -h` and `cclip -h` for description of command line arguments.
 
 **For now, you need to create directory for database file manually. This will be fixed in the future. For now, just `mkdir -p ~/.local/share/cclip`**
 
