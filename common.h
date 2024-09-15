@@ -23,9 +23,10 @@
 
 #include "config.h"
 
-#define debug(...) do { if (config.verbose) { fprintf(stderr, "DEBUG: " __VA_ARGS__); } } while(0)
-#define warn(...) do { fprintf(stderr, "WARN: " __VA_ARGS__); } while(0)
-#define die(...) do { fprintf(stderr, "CRITICAL: " __VA_ARGS__); exit(1); } while(0)
+#define debug(__fmt, ...) do { if (config.verbose) { fprintf(stderr, "DEBUG %s:%d: " __fmt, __FILE__, __LINE__, ##__VA_ARGS__); } } while(0)
+#define warn(__fmt, ...) do { fprintf(stderr, "WARN %s:%d: " __fmt, __FILE__, __LINE__, ##__VA_ARGS__); } while(0)
+#define critical(__fmt, ...) do { fprintf(stderr, "CRITICAL %s:%d: " __fmt, __FILE__, __LINE__, ##__VA_ARGS__); } while(0)
+#define die(__fmt, ...) do { fprintf(stderr, "CRITICAL %s:%d: " __fmt, __FILE__, __LINE__, ##__VA_ARGS__); exit(1); } while(0)
 
 #define min(a, b) a < b ? a : b
 #define max(a, b) a > b ? a : b

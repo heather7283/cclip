@@ -1,4 +1,6 @@
 CFLAGS = -Wall -Wextra -Wpedantic -Og -g
+# both gcc and clang support it, and it makes my life easier
+CFLAGS += -Wno-gnu-zero-variadic-macro-arguments
 
 VERSION != ver="$$(git describe --long)"; [ -n "$$ver" ] && printf "$$ver" | sed 's/\([^-]*-g\)/r\1/;s/-/./g' || printf 0.0.0
 
