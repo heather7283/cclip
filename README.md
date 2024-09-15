@@ -97,7 +97,7 @@ cclipd -s 2
 Will only save entries size of which is greater than or equal to 2 bytes. This will prevent single ASCII characters from being saved, but will still allow mulitbyte unicode sequences like kanji or emojis.
 
 ## TODOs
-- [ ] limiting number of database entries
+- [x] limiting number of database entries
 - [ ] man pages for cclipd and cclip
 
 ## Thanks
