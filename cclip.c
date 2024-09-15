@@ -128,6 +128,8 @@ void get(int64_t id) {
     } else {
         die("sqlite error: %s\n", sqlite3_errmsg(db));
     }
+
+    sqlite3_finalize(stmt);
 }
 
 void delete(int64_t id) {
