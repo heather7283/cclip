@@ -45,7 +45,7 @@ Generally, you want to start cclipd from your compositor's startup file. Example
 exec-once = cclipd -s 2 -t "image/png" -t "image/*" -t "text/plain;charset=utf-8" -t "text/*" -t "*"
 ```
 
-cclip is best used with apps like rofi(1) or fzf(1). See [example script](examples/picker.sh) using fzf for picker and chafa for image previews (requires terminal emulator with sixel support):
+cclip is best used with apps like [rofi](https://github.com/lbonn/rofi) or [fzf](https://github.com/junegunn/fzf). See [example script](examples/picker.sh) using fzf for picker and [chafa](https://github.com/hpjansson/chafa) for image previews (requires terminal emulator with sixel support):
 ```
 cd examples
 bash picker.sh
