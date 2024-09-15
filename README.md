@@ -17,20 +17,19 @@ cclip was heavily inspired by [cliphist](https://github.com/sentriz/cliphist) an
 
 ## Building
 > [!NOTE]
-> Make sure you have **libwayland-client**, **libsqlite3** and **wayland-scanner** installed before proceeding. You also need GNU make and not ancient C compiler.
+> Make sure you have **libwayland-client**, **libsqlite3** and **wayland-scanner** installed before proceeding.
 
-Building cclip is as simple as running `make`:
+cclip uses meson build system. To build cclip locally:
 ```
 git clone https://github.com/heather7283/cclip.git
 cd cclip
-make
+meson setup --buildtype=release build
+meson compile -C build
 ```
-By default `make` produces build optimised for debugging. If you wish to save a couple kilobytes, you can use custom CFLAGS:
+Binaries will be available under build directory. If you wish to have cclipd and cclip binaries available system-wide, install them:
 ```
-make clean
-make CFLAGS='-O3 -march=native`
+sudo meson install -C build
 ```
-To have cclipd and cclip binaries available system-wide, copy them to a directory in your PATH, for example /usr/local/bin
 
 ## Usage
 > [!IMPORTANT]
@@ -104,3 +103,4 @@ Will only save entries size of which is greater than or equal to 2 bytes. This w
 - [cliphist](https://github.com/sentriz/cliphist) - for original idea and inspiration
 - [wayclip](https://git.sr.ht/~noocsharp/wayclip) - for showing how to work with wayland protocols
 - [sqlite3](https://sqlite.org/index.html) - for their fast and efficient database library
+- [meson](https://mesonbuild.com/) - for their amazing build system (I am never using make again)
