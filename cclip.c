@@ -130,6 +130,31 @@ void get(int64_t id) {
     }
 }
 
+void delete(int64_t id) {
+    sqlite3_stmt* stmt;
+    int retcode;
+
+    const char* sql = "DELETE FROM history WHERE rowid = ?";
+
+    retcode = sqlite3_prepare(db, sql, -1, &stmt, NULL);
+    if (retcode != SQLITE_OK) {
+        die("sqlite error: %s\n", sqlite3_errmsg(db));
+    }
+
+    sqlite3_bind_int(stmt, 1, id);
+
+    retcode = sqlite3_step(stmt);
+    if (retcode == SQLITE_DONE) {
+        if (sqlite3_changes(db) == 0) {
+            warn("table was not modified, maybe entry with specified id does not exists\n");
+        }
+    } else {
+        die("sqlite error: %s\n", sqlite3_errmsg(db));
+    }
+
+    sqlite3_finalize(stmt);
+}
+
 void print_version_and_exit(void) {
     fprintf(stderr, "cclip version %s\n", CCLIP_VERSION);
     exit(0);
@@ -224,7 +249,7 @@ int main(int _argc, char** _argv) {
         if (id <= 0) {
             die("id should be a positive integer, got %s\n", argv[optind + 1]);
         }
-        die("delete not implemented yet\n");
+        delete(id);
     } else if (strcmp(action, "wipe") == 0) {
         die("wipe not implemented yet\n");
     } else {
