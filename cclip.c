@@ -196,8 +196,8 @@ void print_help_and_exit(int exit_status) {
         "actions:\n"
         "    list [FIELDS] print list of all saved entries to stdout\n"
         "    get ID        print entry with specified ID to stdout\n"
-        "    remove ID     delete entry with specified id (NOT IMPLEMENTED)\n"
-        "    wipe          delete all entries from database (NOT IMPLEMENTED)\n";
+        "    remove ID     delete entry with specified ID from database\n"
+        "    wipe          delete all entries from database\n";
 
     fprintf(stderr, help_string, LIST_MAX_SELECTED_FIELDS);
     exit(exit_status);
