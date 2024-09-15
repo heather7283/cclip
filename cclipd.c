@@ -502,7 +502,7 @@ void print_help_and_exit(int exit_status) {
         "cclipd - clipboard manager daemon\n"
         "\n"
         "usage:\n"
-        "    %s [-vVhp] [-d DB_PATH] [-t PATTERN] [-s SIZE] [-c ENTRIES]\n"
+        "    cclipd [-vVhp] [-d DB_PATH] [-t PATTERN] [-s SIZE] [-c ENTRIES]\n"
         "\n"
         "command line options:\n"
         "    -V            display version and exit\n"
@@ -516,7 +516,7 @@ void print_help_and_exit(int exit_status) {
         "    -c ENTRIES    max count of entries to keep in database\n"
         "    -p            also monitor primary selection\n";
 
-    fprintf(stderr, help_string, prog_name);
+    fputs(help_string, stderr);
     exit(exit_status);
 }
 
