@@ -38,7 +38,7 @@ struct config config = {
     .max_entries_count = 1000
 };
 
-static char* get_default_db_path(void) {
+char* get_default_db_path(void) {
     char* db_path = malloc(MAX_PATH_LENGTH * sizeof(char));
     if (db_path == NULL) {
         die("failed to allocate memory for db path string\n");

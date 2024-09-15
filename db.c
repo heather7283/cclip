@@ -28,12 +28,16 @@
 
 struct sqlite3* db = NULL;
 
-void db_init(const char* const db_path) {
+void db_init(const char* const db_path, bool create_if_not_exists) {
     char* errmsg = NULL;
     int ret_code = 0;
 
     if (access(db_path, F_OK) == -1) {
-        warn("database file does not exist\n");
+        if (!create_if_not_exists) {
+            die("database file %s does not exist\n", db_path);
+        }
+
+        warn("database file %s does not exist\n", db_path);
         /* TODO: also recursively create all needed directories */
         FILE* db_file = fopen(db_path, "w+");
         if (db_file == NULL) {

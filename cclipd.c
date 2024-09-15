@@ -595,7 +595,7 @@ int main(int _argc, char** _argv) {
     config_set_default_values();
 
     char* db_path = config.db_path;
-    db_init(db_path);
+    db_init(db_path, true);
 
     wayland_init();
 

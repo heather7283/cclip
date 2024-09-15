@@ -20,6 +20,7 @@
 
 #include <stdint.h>
 #include <time.h>
+#include <stdbool.h>
 #include <sqlite3.h>
 
 extern struct sqlite3* db;
@@ -34,6 +35,6 @@ struct db_entry {
 };
 
 /* initialises empty db if db is not found */
-void db_init(const char* const db_path);
+void db_init(const char* const db_path, bool create_if_not_exists);
 
 #endif /* #ifndef DB_H */

@@ -34,4 +34,6 @@ extern struct config config;
 
 void config_set_default_values(void);
 
+char* get_default_db_path(void);
+
 #endif /* #ifndef CONFIG_H */
