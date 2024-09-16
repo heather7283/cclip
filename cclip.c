@@ -21,6 +21,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <unistd.h>
+#include <inttypes.h>
 
 #include "common.h"
 #include "config.h"
@@ -254,19 +255,27 @@ int main(int _argc, char** _argv) {
         }
         list(output_format);
     } else if (strcmp(action, "get") == 0) {
+        int64_t id = -1;
         if (argv[optind + 1] == NULL) {
-            die("no id provided\n");
+            if (scanf("%" SCNd64 "\n", &id) != 1) {
+                die("no id provided\n");
+            }
+        } else {
+            id = atoll(argv[optind + 1]);
         }
-        int64_t id = atoll(argv[optind + 1]);
         if (id <= 0) {
             die("id should be a positive integer, got %s\n", argv[optind + 1]);
         }
         get(id);
     } else if (strcmp(action, "delete") == 0) {
+        int64_t id = -1;
         if (argv[optind + 1] == NULL) {
-            die("no id provided\n");
+            if (scanf("%" SCNd64 "\n", &id) != 1) {
+                die("no id provided\n");
+            }
+        } else {
+            id = atoll(argv[optind + 1]);
         }
-        int64_t id = atoll(argv[optind + 1]);
         if (id <= 0) {
             die("id should be a positive integer, got %s\n", argv[optind + 1]);
         }
