@@ -1,0 +1,2 @@
+option('man', type: 'boolean', value: true,
+       description: 'Build and install man pages')
