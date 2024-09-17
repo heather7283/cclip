@@ -97,7 +97,7 @@ Will only save entries size of which is greater than or equal to 2 bytes. This w
 
 ## TODOs
 - [x] limiting number of database entries
-- [ ] man pages for cclipd and cclip
+- [x] man pages for cclipd and cclip
 
 ## Thanks
 - [cliphist](https://github.com/sentriz/cliphist) - for original idea and inspiration
