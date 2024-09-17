@@ -241,7 +241,11 @@ int main(int _argc, char** _argv) {
     if (db_path == NULL) {
         db_path = get_default_db_path();
     }
-    db_init(db_path, false);
+
+    int retcode;
+    if ((retcode = sqlite3_open(db_path, &db)) != SQLITE_OK) {
+        die("sqlite error: %s\n", sqlite3_errstr(retcode));
+    }
 
     if (argv[optind] == NULL) {
         die("no action provided\n");
