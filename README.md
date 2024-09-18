@@ -38,8 +38,6 @@ sudo meson install -C build
 
 Run `cclipd -h` and `cclip -h` for description of command line arguments.
 
-**For now, you need to create directory for database file manually. This will be fixed in the future. For now, just `mkdir -p ~/.local/share/cclip`**
-
 Generally, you want to start cclipd from your compositor's startup file. Example for Hyprland:
 ```
 exec-once = cclipd -s 2 -t "image/png" -t "image/*" -t "text/plain;charset=utf-8" -t "text/*" -t "*"
