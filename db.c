@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+#include <sys/wait.h>
 #include <stdio.h> /* snprintf */
 #include <stdlib.h> /* getenv */
 #include <unistd.h> /* getuid, access */
@@ -23,6 +24,8 @@
 #include <string.h> /* strlen */
 #include <sqlite3.h> /* all the sqlite stuff */
 #include <stdbool.h>
+#include <libgen.h>
+#include <errno.h>
 
 #include "common.h"
 
@@ -35,13 +38,36 @@ void db_init(const char* const db_path, bool create_if_not_exists) {
     if (access(db_path, F_OK) == -1) {
         if (!create_if_not_exists) {
             die("database file %s does not exist\n", db_path);
+        } else {
+            warn("database file %s does not exist, "
+                 "attempting to create\n", db_path);
         }
 
-        warn("database file %s does not exist\n", db_path);
-        /* TODO: also recursively create all needed directories */
+
+        char* db_path_dup = strdup(db_path);
+        char* db_dir = dirname(db_path_dup);
+
+        char* mkdir_cmd[] = {"mkdir", "-p", db_dir, NULL};
+        pid_t child_pid = fork();
+        if (child_pid == -1) {
+            warn("forking child failed: %s\n", strerror(errno));
+        } else if (child_pid == 0) {
+            /* child */
+            execvp(mkdir_cmd[0], mkdir_cmd);
+            warn("execing into mkdir -p failed: %s\n", strerror(errno));
+            exit(1);
+        } else {
+            /* parent */
+            if (waitpid(child_pid, NULL, 0) == -1) {
+                warn("failed to wait for child: %s\n", strerror(errno));
+            };
+        }
+
+        free(db_path_dup);
+
         FILE* db_file = fopen(db_path, "w+");
         if (db_file == NULL) {
-            die("unable to create database file\n");
+            die("unable to create database file: %s\n", strerror(errno));
         }
         fclose(db_file);
     }
