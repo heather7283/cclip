@@ -29,6 +29,7 @@ struct wl_seat* seat = NULL;
 struct wl_registry* registry = NULL;
 struct zwlr_data_control_manager_v1* data_control_manager = NULL;
 struct zwlr_data_control_device_v1* data_control_device = NULL;
+int wayland_fd = -1;
 
 static bool seat_found = false;
 
@@ -80,6 +81,8 @@ void wayland_init(void) {
 	if (display == NULL) {
 		die("failed to connect to display\n");
     }
+
+    wayland_fd = wl_display_get_fd(display);
 
 	registry = wl_display_get_registry(display);
 	if (registry == NULL) {
