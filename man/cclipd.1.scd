@@ -41,6 +41,8 @@ Default is *1000*.
 *-p* Will tell *cclipd* to also monitor primary selection for changes, which is
 disabled by default.
 
+*-e* Will make *cclipd* error out if database does not exist instead of creating it.
+
 *-v* Will increase verbosity of *cclipd* output.
 
 *-h* Will cause *cclipd* to print help message and then exit.
