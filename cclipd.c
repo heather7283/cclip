@@ -528,7 +528,7 @@ void print_help_and_exit(int exit_status) {
 void parse_command_line(void) {
     int opt;
 
-    while ((opt = getopt(argc, argv, ":d:t:s:c:pvVh")) != -1) {
+    while ((opt = getopt(argc, argv, ":d:t:s:c:pevVh")) != -1) {
         switch (opt) {
         case 'd':
             debug("db file path supplied on command line: %s\n", optarg);
@@ -568,6 +568,9 @@ void parse_command_line(void) {
         case 'p':
             config.primary_selection = true;
             break;
+        case 'e':
+            config.create_db_if_not_exists = false;
+            break;
         case 'v':
             config.verbose = true;
             break;
@@ -602,7 +605,7 @@ int main(int _argc, char** _argv) {
     config_set_default_values();
 
     char* db_path = config.db_path;
-    db_init(db_path, true);
+    db_init(db_path, config.create_db_if_not_exists);
 
     wayland_init();
 

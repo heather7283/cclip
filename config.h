@@ -29,6 +29,7 @@ struct config {
     char* db_path;
     bool primary_selection;
     int max_entries_count;
+    bool create_db_if_not_exists;
 };
 extern struct config config;
 
