@@ -54,7 +54,7 @@ If entry with specified id does not exist in database,
 Get most recently saved PNG image and display it using *chafa*(1):
 
 ```
-cclip list | awk -F $'\t' '$2 == "image/png" {print $1; exit}' | cclip get | chafa -f sixel
+cclip list | awk -F $'\\t' '$2 == "image/png" {print $1; exit}' | cclip get | chafa -f sixel
 ```
 
 Interactive picker using *fzf*(1):
@@ -62,14 +62,14 @@ Interactive picker using *fzf*(1):
 ```
 #/usr/bin/env bash
 
-IFS=$'\t' read -r id mime preview < <(cclip list | fzf --with-nth 3 -d $'\t')
+IFS=$'\\t' read -r id mime preview < <(cclip list | fzf --with-nth 3 -d $'\\t')
 if [ -n "$id" ]; then cclip get "$id" | wl-copy --type "$mime"; fi
 ```
 
 Example above can be simplifed if you let *wl-copy*(1) figure out MIME type:
 
 ```
-cclip list | fzf --with-nth 3 -d $'\t' | cut -f 1 | cclip get | wl-copy
+cclip list | fzf --with-nth 3 -d $'\\t' | cut -f 1 | cclip get | wl-copy
 ```
 
 # EXIT STATUS
