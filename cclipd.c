@@ -208,7 +208,8 @@ void insert_db_entry(struct db_entry* entry) {
         "SELECT COUNT(*) FROM history";
     retcode = sqlite3_prepare_v2(db, count_query, -1, &stmt, NULL);
     if (retcode != SQLITE_OK) {
-        die("sqlite error: %s\n", sqlite3_errmsg(db));
+        critical("sqlite error: %s\n", sqlite3_errmsg(db));
+        goto rollback;
     }
     retcode = sqlite3_step(stmt);
     if (retcode == SQLITE_ROW) {
