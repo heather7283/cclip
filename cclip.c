@@ -53,7 +53,7 @@ int print_row(void* data, int argc, char** argv, char** column_names) {
     return 0;
 }
 
-void list(char* fields) {
+int list(char* fields) {
     char* selected_fields[LIST_MAX_SELECTED_FIELDS];
     int selected_fields_count = 0;
 
@@ -76,7 +76,8 @@ void list(char* fields) {
             }
 
             if (!is_valid_token) {
-                die("invalid field: %s\n", token);
+                critical("invalid field: %s\n", token);
+                return 1;
             }
 
             token = strtok(NULL, ",");
@@ -84,7 +85,8 @@ void list(char* fields) {
     }
 
     if (selected_fields_count < 1) {
-        die("no fields selected\n");
+        critical("no fields selected\n");
+        return 1;
     }
 
     char* errmsg = NULL;
@@ -101,11 +103,14 @@ void list(char* fields) {
 
     retcode = sqlite3_exec(db, sql, print_row, NULL, &errmsg);
     if (retcode != SQLITE_OK) {
-        die("sqlite error: %s\n", errmsg);
+        critical("sqlite error: %s\n", errmsg);
+        return 1;
     }
+
+    return 0;
 }
 
-void get(int64_t id) {
+int get(int64_t id) {
     sqlite3_stmt* stmt;
     int retcode;
 
@@ -113,7 +118,8 @@ void get(int64_t id) {
 
     retcode = sqlite3_prepare(db, sql, -1, &stmt, NULL);
     if (retcode != SQLITE_OK) {
-        die("sqlite error: %s\n", sqlite3_errmsg(db));
+        critical("sqlite error: %s\n", sqlite3_errmsg(db));
+        return 1;
     }
 
     sqlite3_bind_int(stmt, 1, id);
@@ -125,15 +131,19 @@ void get(int64_t id) {
 
         fwrite(data, 1, data_size, stdout);
     } else if (retcode == SQLITE_DONE) {
-        die("no entry found with specified id\n");
+        critical("no entry found with specified id\n");
+        return 1;
     } else {
-        die("sqlite error: %s\n", sqlite3_errmsg(db));
+        critical("sqlite error: %s\n", sqlite3_errmsg(db));
+        return 1;
     }
 
     sqlite3_finalize(stmt);
+
+    return 0;
 }
 
-void delete(int64_t id) {
+int delete(int64_t id) {
     sqlite3_stmt* stmt;
     int retcode;
 
@@ -141,7 +151,8 @@ void delete(int64_t id) {
 
     retcode = sqlite3_prepare(db, sql, -1, &stmt, NULL);
     if (retcode != SQLITE_OK) {
-        die("sqlite error: %s\n", sqlite3_errmsg(db));
+        critical("sqlite error: %s\n", sqlite3_errmsg(db));
+        return 1;
     }
 
     sqlite3_bind_int(stmt, 1, id);
@@ -152,18 +163,16 @@ void delete(int64_t id) {
             warn("table was not modified, maybe entry with specified id does not exists\n");
         }
     } else {
-        die("sqlite error: %s\n", sqlite3_errmsg(db));
+        critical("sqlite error: %s\n", sqlite3_errmsg(db));
+        return 1;
     }
 
     sqlite3_finalize(stmt);
+
+    return 0;
 }
 
-void print_version_and_exit(void) {
-    fprintf(stderr, "cclip version %s\n", CCLIP_VERSION);
-    exit(0);
-}
-
-void wipe(void) {
+int wipe(void) {
     sqlite3_stmt* stmt;
     int retcode;
 
@@ -171,15 +180,24 @@ void wipe(void) {
 
     retcode = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
     if (retcode != SQLITE_OK) {
-        die("sqlite error: %s\n", sqlite3_errmsg(db));
+        critical("sqlite error: %s\n", sqlite3_errmsg(db));
+        return 1;
     }
 
     retcode = sqlite3_step(stmt);
     if (retcode != SQLITE_DONE) {
-        die("sqlite error: %s\n", sqlite3_errmsg(db));
+        critical("sqlite error: %s\n", sqlite3_errmsg(db));
+        return 1;
     }
 
     sqlite3_finalize(stmt);
+
+    return 0;
+}
+
+void print_version_and_exit(void) {
+    fprintf(stderr, "cclip version %s\n", CCLIP_VERSION);
+    exit(0);
 }
 
 void print_help_and_exit(int exit_status) {
@@ -236,6 +254,8 @@ int main(int _argc, char** _argv) {
     argv = _argv;
     prog_name = argc > 0 ? argv[0] : "cclip";
 
+    int exit_status = 0;
+
     parse_command_line();
 
     if (db_path == NULL) {
@@ -248,7 +268,9 @@ int main(int _argc, char** _argv) {
     }
 
     if (argv[optind] == NULL) {
-        die("no action provided\n");
+        critical("no action provided\n");
+        exit_status = 1;
+        goto cleanup;
     }
     char* action = argv[optind];
 
@@ -257,36 +279,50 @@ int main(int _argc, char** _argv) {
         if (argv[optind + 1] != NULL) {
             output_format = argv[optind + 1];
         }
-        list(output_format);
+        exit_status = list(output_format);
     } else if (strcmp(action, "get") == 0) {
         int64_t id = -1;
         if (argv[optind + 1] == NULL) {
             if (scanf("%" SCNd64 "\n", &id) != 1) {
-                die("no id provided\n");
+                critical("no id provided\n");
+                exit_status = 1;
+                goto cleanup;
             }
         } else {
             id = atoll(argv[optind + 1]);
         }
         if (id <= 0) {
-            die("id should be a positive integer, got %s\n", argv[optind + 1]);
+            critical("id should be a positive integer, got %s\n", argv[optind + 1]);
+            exit_status = 1;
+            goto cleanup;
         }
-        get(id);
+        exit_status = get(id);
     } else if (strcmp(action, "delete") == 0) {
         int64_t id = -1;
         if (argv[optind + 1] == NULL) {
             if (scanf("%" SCNd64 "\n", &id) != 1) {
-                die("no id provided\n");
+                critical("no id provided\n");
+                exit_status = 1;
+                goto cleanup;
             }
         } else {
             id = atoll(argv[optind + 1]);
         }
         if (id <= 0) {
-            die("id should be a positive integer, got %s\n", argv[optind + 1]);
+            critical("id should be a positive integer, got %s\n", argv[optind + 1]);
+            exit_status = 1;
+            goto cleanup;
         }
-        delete(id);
+        exit_status = delete(id);
     } else if (strcmp(action, "wipe") == 0) {
-        wipe();
+        exit_status = wipe();
     } else {
-        die("invalid action: %s\n", action);
+        critical("invalid action: %s\n", action);
+        exit_status = 1;
+        goto cleanup;
     }
+
+cleanup:
+    sqlite3_close_v2(db);
+    exit(exit_status);
 }
