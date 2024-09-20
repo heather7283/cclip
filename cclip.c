@@ -238,9 +238,11 @@ void parse_command_line(void) {
             break;
         case '?':
             critical("unknown option: %c\n", optopt);
+            print_help_and_exit(1);
             break;
         case ':':
             critical("missing arg for %c\n", optopt);
+            print_help_and_exit(1);
             break;
         default:
             die("error while parsing command line options\n");
