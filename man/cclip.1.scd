@@ -40,8 +40,8 @@ Empty _FIELDS_ is equivalent to *rowid,mime_type,preview*.
 	Print saved clipboard entry with specified id to stdout.++
 If _ID_ is not specified, *cclip* will try to read id from stdin.
 
-*remove* [_ID_]
-	Remove entry with specified id from database.++
+*delete* [_ID_]
+	Delete entry with specified id from database.++
 If _ID_ is not specified, *cclip* will try to read id from stdin.++
 If entry with specified id does not exist in database,
 	nothing is done and warning is printed to stderr.
