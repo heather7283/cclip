@@ -46,7 +46,7 @@ exec-once = cclipd -s 2 -t "image/png" -t "image/*" -t "text/plain;charset=utf-8
 cclip is best used with apps like [rofi](https://github.com/lbonn/rofi) or [fzf](https://github.com/junegunn/fzf). See [example script](examples/picker.sh) using fzf for picker and [chafa](https://github.com/hpjansson/chafa) for image previews (requires terminal emulator with sixel support):
 ```
 cd examples
-bash picker.sh
+sh picker.sh
 ```
 
 ## Why another clipboard manager?
