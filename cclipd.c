@@ -582,11 +582,11 @@ void parse_command_line(void) {
             print_help_and_exit(0);
             break;
         case '?':
-            fprintf(stderr, "unknown option: %c\n", optopt);
+            critical("unknown option: %c\n", optopt);
             print_help_and_exit(1);
             break;
         case ':':
-            fprintf(stderr, "missing arg for %c\n", optopt);
+            critical("missing arg for %c\n", optopt);
             print_help_and_exit(1);
             break;
         default:
