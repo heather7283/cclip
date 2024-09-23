@@ -26,5 +26,6 @@ extern struct zwlr_data_control_device_v1* data_control_device;
 extern int wayland_fd;
 
 void wayland_init(void);
+void wayland_cleanup(void);
 
 #endif /* #ifndef WAYLAND_H */

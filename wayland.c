@@ -106,3 +106,21 @@ void wayland_init(void) {
 		die("data device is null\n");
     }
 }
+
+void wayland_cleanup(void) {
+    if (data_control_device) {
+        zwlr_data_control_device_v1_destroy(data_control_device);
+    }
+    if (data_control_manager) {
+        zwlr_data_control_manager_v1_destroy(data_control_manager);
+    }
+    if (seat) {
+        wl_seat_destroy(seat);
+    }
+    if (registry) {
+        wl_registry_destroy(registry);
+    }
+    if (display) {
+        wl_display_disconnect(display);
+    }
+}

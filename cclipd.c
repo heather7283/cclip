@@ -696,7 +696,7 @@ int main(int _argc, char** _argv) {
 
 cleanup:
     sqlite3_close_v2(db);
-    wl_display_disconnect(display);
+    wayland_cleanup();
     exit(exit_status);
 }
 
