@@ -46,6 +46,8 @@ int argc;
 char** argv;
 char* prog_name;
 
+struct zwlr_data_control_offer_v1* offer = NULL;
+
 /* surely nobody will offer more than 32 mime types */
 #define OFFERED_MIME_TYPES_LEN 32
 char* offered_mime_types[OFFERED_MIME_TYPES_LEN];
@@ -275,7 +277,7 @@ rollback:
     }
 }
 
-size_t receive_data(char** buffer, struct zwlr_data_control_offer_v1* offer, char* mime_type) {
+size_t receive_data(char** buffer, char* mime_type) {
     /* reads offer into buffer, returns number of bytes read */
     debug("start receiving offer...\n");
 
@@ -285,7 +287,7 @@ size_t receive_data(char** buffer, struct zwlr_data_control_offer_v1* offer, cha
     }
 
     zwlr_data_control_offer_v1_receive(offer, mime_type, pipes[1]);
-    /* AFTER THIS LINE WE WILL GET NEW OFFER!!! */
+    /* AFTER THIS LINE offer IS NO LONGER VALID!!! */
     wl_display_roundtrip(display);
     close(pipes[1]);
 
@@ -327,7 +329,7 @@ size_t receive_data(char** buffer, struct zwlr_data_control_offer_v1* offer, cha
     return total_read;
 }
 
-void receive(struct zwlr_data_control_offer_v1* offer) {
+void receive_offer(void) {
     char* mime_type = NULL;
     char* buffer = NULL;
     struct db_entry* new_entry = NULL;
@@ -339,7 +341,7 @@ void receive(struct zwlr_data_control_offer_v1* offer) {
         goto out;
     }
 
-    size_t bytes_read = receive_data(&buffer, offer, mime_type);
+    size_t bytes_read = receive_data(&buffer, mime_type);
 
     if (bytes_read == 0) {
         warn("received 0 bytes\n");
@@ -376,7 +378,6 @@ out:
         free(new_entry->preview);
         free(new_entry);
     }
-    zwlr_data_control_offer_v1_destroy(offer);
 }
 
 /*
@@ -418,15 +419,15 @@ const struct zwlr_data_control_offer_v1_listener data_control_offer_listener = {
  * types it offers.
  */
 void data_offer_handler(void* data, struct zwlr_data_control_device_v1* device,
-                        struct zwlr_data_control_offer_v1* offer) {
+                        struct zwlr_data_control_offer_v1* new_offer) {
     UNUSED(data);
     UNUSED(device);
 
-    debug("got new wlr_data_control_offer %p\n", (void*)offer);
+    debug("got new wlr_data_control_offer %p\n", (void*)new_offer);
 
     free_offered_mime_types();
 
-	zwlr_data_control_offer_v1_add_listener(offer, &data_control_offer_listener, NULL);
+	zwlr_data_control_offer_v1_add_listener(new_offer, &data_control_offer_listener, NULL);
 }
 
 /*
@@ -444,18 +445,21 @@ void data_offer_handler(void* data, struct zwlr_data_control_device_v1* device,
  * wlr_data_control_device object.
  */
 void selection_handler(void* data, struct zwlr_data_control_device_v1* device,
-                       struct zwlr_data_control_offer_v1* offer) {
+                       struct zwlr_data_control_offer_v1* new_offer) {
     UNUSED(data);
     UNUSED(device);
 
-    debug("got selection event for offer %p\n", (void*)offer);
+    debug("got selection event for offer %p\n", (void*)new_offer);
 
-    if (offer == NULL) {
-        warn("offer is NULL!\n");
-        return;
+    if (offer != NULL) {
+        debug("destroying previous offer %p\n", (void*)offer);
+        zwlr_data_control_offer_v1_destroy(offer);
     }
+    offer = new_offer;
 
-    receive(offer);
+    if (offer != NULL) {
+        receive_offer();
+    }
 }
 
 /*
@@ -474,22 +478,21 @@ void selection_handler(void* data, struct zwlr_data_control_device_v1* device,
  * wlr_data_control_device object.
  */
 void primary_selection_handler(void* data, struct zwlr_data_control_device_v1* device,
-                               struct zwlr_data_control_offer_v1* offer) {
+                               struct zwlr_data_control_offer_v1* new_offer) {
     UNUSED(data);
     UNUSED(device);
 
-    debug("got primary selection event for offer %p\n", (void*)offer);
+    debug("got primary selection event for offer %p\n", (void*)new_offer);
 
-    if (!config.primary_selection) {
-        return;
+    if (offer != NULL) {
+        debug("destroying previous offer %p\n", (void*)offer);
+        zwlr_data_control_offer_v1_destroy(offer);
     }
+    offer = new_offer;
 
-    if (offer == NULL) {
-        warn("offer is NULL!\n");
-        return;
+    if (config.primary_selection && offer != NULL) {
+        receive_offer();
     }
-
-    receive(offer);
 }
 
 const struct zwlr_data_control_device_v1_listener data_control_device_listener = {
