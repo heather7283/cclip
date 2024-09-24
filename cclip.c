@@ -41,6 +41,7 @@ char** argv;
 char* prog_name;
 
 char* db_path = NULL;
+bool secure_delete = false;
 
 int print_row(void* data, int argc, char** argv, char** column_names) {
     UNUSED(data);
@@ -205,10 +206,11 @@ void print_help_and_exit(int exit_status) {
         "cclip - command line interface for cclip database\n"
         "\n"
         "usage:\n"
-        "    cclip [-Vh] [-d DB_PATH] ACTION ACTION_ARG\n"
+        "    cclip [-sVh] [-d DB_PATH] ACTION ACTION_ARG\n"
         "\n"
         "command line options:\n"
         "    -d DB_PATH    specify path to database file\n"
+        "    -s            enable secure_delete pragma\n"
         "    -V            display version and exit\n"
         "    -h            print this help message and exit\n"
         "\n"
@@ -225,10 +227,13 @@ void print_help_and_exit(int exit_status) {
 void parse_command_line(void) {
     int opt;
 
-    while ((opt = getopt(argc, argv, ":d:Vh")) != -1) {
+    while ((opt = getopt(argc, argv, ":d:sVh")) != -1) {
         switch (opt) {
         case 'd':
             db_path = strdup(optarg);
+            break;
+        case 's':
+            secure_delete = true;
             break;
         case 'V':
             print_version_and_exit();
@@ -265,8 +270,19 @@ int main(int _argc, char** _argv) {
     }
 
     int retcode;
+    char* errmsg;
+
     if ((retcode = sqlite3_open(db_path, &db)) != SQLITE_OK) {
         die("sqlite error: %s\n", sqlite3_errstr(retcode));
+    }
+
+    if (secure_delete) {
+        retcode = sqlite3_exec(db, "PRAGMA secure_delete = 1", NULL, NULL, &errmsg);
+        if (retcode != SQLITE_OK) {
+            critical("sqlite error: %s\n", errmsg);
+            exit_status = 1;
+            goto cleanup;
+        }
     }
 
     if (argv[optind] == NULL) {
