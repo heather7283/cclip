@@ -196,6 +196,19 @@ int wipe(void) {
     return 0;
 }
 
+int vacuum(void) {
+    int retcode;
+    char* errmsg;
+
+    retcode = sqlite3_exec(db, "VACUUM", NULL, NULL, &errmsg);
+    if (retcode != SQLITE_OK) {
+        critical("sqlite error: %s\n", errmsg);
+        return 1;
+    }
+
+    return 0;
+}
+
 void print_version_and_exit(void) {
     fprintf(stderr, "cclip version %s\n", CCLIP_VERSION);
     exit(0);
@@ -218,7 +231,8 @@ void print_help_and_exit(int exit_status) {
         "    list [FIELDS] print list of all saved entries to stdout\n"
         "    get ID        print entry with specified ID to stdout\n"
         "    delete ID     delete entry with specified ID from database\n"
-        "    wipe          delete all entries from database\n";
+        "    wipe          delete all entries from database\n"
+        "    vacuum        repack database into minimal amount of space\n";
 
     fprintf(stderr, help_string, LIST_MAX_SELECTED_FIELDS);
     exit(exit_status);
@@ -334,6 +348,8 @@ int main(int _argc, char** _argv) {
         exit_status = delete(id);
     } else if (strcmp(action, "wipe") == 0) {
         exit_status = wipe();
+    } else if (strcmp(action, "vacuum") == 0) {
+        exit_status = vacuum();
     } else {
         critical("invalid action: %s\n", action);
         exit_status = 1;
