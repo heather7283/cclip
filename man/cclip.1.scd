@@ -20,6 +20,10 @@ created by *cclipd*(1).
 Default is *$XDG_DATA_HOME/cclip/db.sqlite3* if *XDG_DATA_HOME* is set, or
 	*$HOME/.local/share/cclip/db.sqlite3* otherwise.
 
+*-s* Enables secure_delete option.
+Deleted content with be overwritten with zeroes.
+Use this to delete sensitive data like passwords.
+
 *-h* Will cause *cclipd* to print help message and then exit.
 
 *-V* Will cause *cclipd* to print its version and then exit.
@@ -48,6 +52,9 @@ If entry with specified id does not exist in database,
 
 *wipe*
 	Remove _all_ entries from database.
+
+*vacuum*
+	Rebuilds the database file, repacking it into a minimal amount of space.
 
 # EXAMPLES
 

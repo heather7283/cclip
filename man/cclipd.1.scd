@@ -100,7 +100,7 @@ Since *cclipd* stores clipboard data in an unencrypted sqlite database,
 everyone who has read acces to database file can read its contents.
 This can become an issue if you store sensitive data in clipboard.
 One can delete sensitive data from database using *delete* or *wipe*
-actions provided by *cclip*(1).
+actions provided by *cclip*(1) with *-s* option.
 
 # BUGS
 
