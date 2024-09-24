@@ -659,10 +659,14 @@ int main(int _argc, char** _argv) {
         goto cleanup;
     }
 
+    int number_fds = -1;
     struct epoll_event events[EPOLL_MAX_EVENTS];
     while (true) {
         /* main event loop */
-        int number_fds = epoll_wait(epoll_fd, events, EPOLL_MAX_EVENTS, -1);
+        do {
+            number_fds = epoll_wait(epoll_fd, events, EPOLL_MAX_EVENTS, -1);
+        } while (number_fds == -1 && errno == EINTR); /* epoll_wait failing with EINTR is normal */
+
         if (number_fds == -1) {
             critical("epoll_wait error: %s\n", strerror(errno));
             exit_status = 1;
