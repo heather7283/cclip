@@ -18,6 +18,7 @@ cclip was heavily inspired by [cliphist](https://github.com/sentriz/cliphist) an
 ## Building
 > [!NOTE]
 > Make sure you have **libwayland-client**, **libsqlite3** and **wayland-scanner** installed before proceeding.
+> You will also need **scdoc** if you want to build man pages.
 
 cclip uses meson build system. To build cclip locally:
 ```
