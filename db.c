@@ -61,7 +61,7 @@ void db_init(const char* const db_path, bool create_if_not_exists) {
         if (!create_if_not_exists) {
             die("database file %s does not exist\n", db_path);
         } else {
-            warn("database file %s does not exist, "
+            info("database file %s does not exist, "
                  "attempting to create\n", db_path);
         }
 
