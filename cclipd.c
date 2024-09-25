@@ -33,7 +33,8 @@
 #include "wayland.h"
 #include "common.h"
 #include "db.h"
-#include "config.h"
+
+#define debug(__fmt, ...) do { if (config.verbose) { fprintf(stderr, "DEBUG %s:%d: " __fmt, __FILE__, __LINE__, ##__VA_ARGS__); } } while(0)
 
 #define PREVIEW_LEN 128
 #define EPOLL_MAX_EVENTS 16
@@ -52,6 +53,28 @@ struct zwlr_data_control_offer_v1* offer = NULL;
 #define OFFERED_MIME_TYPES_LEN 32
 char* offered_mime_types[OFFERED_MIME_TYPES_LEN];
 int offered_mime_types_count = 0;
+
+struct {
+    bool verbose;
+    int accepted_mime_types_len;
+    char** accepted_mime_types;
+    size_t min_data_size;
+    char* db_path;
+    bool primary_selection;
+    int max_entries_count;
+    bool create_db_if_not_exists;
+} config;
+
+void config_init(void) {
+    config.verbose = false;
+    config.accepted_mime_types_len = 0;
+    config.accepted_mime_types = NULL;
+    config.min_data_size = 1;
+    config.db_path = NULL;
+    config.primary_selection = false;
+    config.max_entries_count = 1000;
+    config.create_db_if_not_exists = true;
+}
 
 char* pick_mime_type(void) {
     /*
@@ -605,11 +628,20 @@ int main(int _argc, char** _argv) {
 
     int exit_status = 0;
 
+    config_init();
     parse_command_line();
-    config_set_default_values();
+    if (config.db_path == NULL) {
+        config.db_path = get_default_db_path();
+    }
+    if (config.accepted_mime_types == NULL) {
+        config.accepted_mime_types = malloc(sizeof(char*) * 1);
+        config.accepted_mime_types[0] = "*";
 
-    char* db_path = config.db_path;
-    db_init(db_path, config.create_db_if_not_exists);
+        config.accepted_mime_types_len = 1;
+    }
+
+    debug("opening database at %s\n", config.db_path);
+    db_init(config.db_path, config.create_db_if_not_exists);
 
     wayland_init();
 

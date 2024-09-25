@@ -24,7 +24,6 @@
 #include <inttypes.h>
 
 #include "common.h"
-#include "config.h"
 #include "db.h"
 
 #ifndef CCLIP_VERSION

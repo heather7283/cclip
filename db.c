@@ -29,7 +29,29 @@
 
 #include "common.h"
 
+#define MAX_DB_PATH_LENGTH 1024
+
 struct sqlite3* db = NULL;
+
+char* get_default_db_path(void) {
+    char* db_path = malloc(MAX_DB_PATH_LENGTH * sizeof(char));
+    if (db_path == NULL) {
+        die("failed to allocate memory for db path string\n");
+    }
+
+    char* xdg_data_home = getenv("XDG_DATA_HOME");
+    if (xdg_data_home != NULL) {
+        snprintf(db_path, MAX_DB_PATH_LENGTH, "%s/%s", xdg_data_home, "cclip/db.sqlite3");
+    } else {
+        char* home = getenv("HOME");
+        if (home == NULL) {
+            die("both HOME and XDG_DATA_HOME are unset, unable to determine db file path\n");
+        }
+        snprintf(db_path, MAX_DB_PATH_LENGTH, "%s/.local/share/%s", home, "cclip/db.sqlite3");
+    }
+
+    return db_path;
+}
 
 void db_init(const char* const db_path, bool create_if_not_exists) {
     char* errmsg = NULL;

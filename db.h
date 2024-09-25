@@ -34,7 +34,7 @@ struct db_entry {
     time_t timestamp; /* unix seconds */
 };
 
-/* initialises empty db if db is not found */
+char* get_default_db_path(void);
 void db_init(const char* const db_path, bool create_if_not_exists);
 
 #endif /* #ifndef DB_H */

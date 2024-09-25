@@ -21,9 +21,6 @@
 #include <stdlib.h> /* exit */
 #include <stdio.h> /* fprintf */
 
-#include "config.h"
-
-#define debug(__fmt, ...) do { if (config.verbose) { fprintf(stderr, "DEBUG %s:%d: " __fmt, __FILE__, __LINE__, ##__VA_ARGS__); } } while(0)
 #define info(__fmt, ...) do { fprintf(stderr, "INFO %s:%d: " __fmt, __FILE__, __LINE__, ##__VA_ARGS__); } while(0)
 #define warn(__fmt, ...) do { fprintf(stderr, "WARN %s:%d: " __fmt, __FILE__, __LINE__, ##__VA_ARGS__); } while(0)
 #define critical(__fmt, ...) do { fprintf(stderr, "CRITICAL %s:%d: " __fmt, __FILE__, __LINE__, ##__VA_ARGS__); } while(0)
