@@ -28,6 +28,7 @@
 #include <errno.h>
 
 #include "common.h"
+#include "db.h"
 
 #define MAX_DB_PATH_LENGTH 1024
 
