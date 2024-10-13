@@ -34,14 +34,14 @@
 #include "common.h"
 #include "db.h"
 
-#define debug(__fmt, ...) do { if (config.verbose) { fprintf(stderr, "DEBUG %s:%d: " __fmt, __FILE__, __LINE__, ##__VA_ARGS__); } } while(0)
-
 #define PREVIEW_LEN 128
 #define EPOLL_MAX_EVENTS 16
 
 #ifndef CCLIP_VERSION
 #define CCLIP_VERSION "uknown_version"
 #endif
+
+unsigned int DEBUG_LEVEL = 0;
 
 int argc;
 char** argv;
@@ -55,7 +55,6 @@ char* offered_mime_types[OFFERED_MIME_TYPES_LEN];
 int offered_mime_types_count = 0;
 
 struct {
-    bool verbose;
     int accepted_mime_types_len;
     char** accepted_mime_types;
     size_t min_data_size;
@@ -66,7 +65,6 @@ struct {
 } config;
 
 void config_init(void) {
-    config.verbose = false;
     config.accepted_mime_types_len = 0;
     config.accepted_mime_types = NULL;
     config.min_data_size = 1;
@@ -599,7 +597,7 @@ void parse_command_line(void) {
             config.create_db_if_not_exists = false;
             break;
         case 'v':
-            config.verbose = true;
+            DEBUG_LEVEL += 1;
             break;
         case 'V':
             print_version_and_exit();

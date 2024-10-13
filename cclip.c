@@ -35,6 +35,8 @@ const char* list_allowed_fields[LIST_MAX_SELECTED_FIELDS] = {
     "rowid", "timestamp", "mime_type", "preview", "data_size"
 };
 
+unsigned int DEBUG_LEVEL = 0;
+
 int argc;
 char** argv;
 char* prog_name;
