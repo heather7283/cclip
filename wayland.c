@@ -70,7 +70,7 @@ static void registry_global_remove(void* data, struct wl_registry* registry, uin
     UNUSED(name);
 }
 
-const struct wl_registry_listener registry_listener = {
+static const struct wl_registry_listener registry_listener = {
 	.global = registry_global,
 	.global_remove = registry_global_remove,
 };
