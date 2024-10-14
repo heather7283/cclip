@@ -18,11 +18,8 @@
 #ifndef PREVIEW_H
 #define PREVIEW_H
 
-#include <stddef.h>
 #include <stdint.h>
 
-size_t sanitise_string(char* str);
-size_t lstrip(char* str);
 char* generate_preview(const void* const data, const int64_t data_size,
                        const char* const mime_type);
 

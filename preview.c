@@ -27,7 +27,7 @@
 
 #define PREVIEW_LEN 128
 
-size_t sanitise_string(char* str) {
+static size_t sanitise_string(char* str) {
     /*
      * makes sure garbage characters don't leak into preview
      * returns size of modified string because it can change
@@ -87,7 +87,7 @@ size_t sanitise_string(char* str) {
     return write;
 }
 
-size_t lstrip(char* str) {
+static size_t lstrip(char* str) {
     /*
      * removes leading whitespace from str
      * returns modified string length
