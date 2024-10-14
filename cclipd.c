@@ -101,91 +101,6 @@ void free_offered_mime_types(void) {
     }
 }
 
-void insert_db_entry(struct db_entry* entry) {
-    sqlite3_stmt* stmt = NULL;
-    int retcode;
-    char* errmsg;
-    int entries_count = -1;
-
-    /* something something atomic */
-    retcode = sqlite3_exec(db, "BEGIN TRANSACTION", NULL, NULL, &errmsg);
-    if (retcode != SQLITE_OK) {
-        critical("sqlite error: %s\n", errmsg);
-        goto rollback;
-    }
-
-    /* find out how many entries are currently in db */
-    const char* count_query =
-        "SELECT COUNT(*) FROM history";
-    retcode = sqlite3_prepare_v2(db, count_query, -1, &stmt, NULL);
-    if (retcode != SQLITE_OK) {
-        critical("sqlite error: %s\n", sqlite3_errmsg(db));
-        goto rollback;
-    }
-    retcode = sqlite3_step(stmt);
-    if (retcode == SQLITE_ROW) {
-        entries_count = sqlite3_column_int(stmt, 0);
-    } else {
-        critical("sqlite error: %s\n", sqlite3_errstr(retcode));
-        goto rollback;
-    }
-    sqlite3_finalize(stmt);
-
-    /* delete oldest */
-    if (entries_count > config.max_entries_count) {
-        debug("deleting oldest entry\n");
-        const char* delete_statement =
-            "DELETE FROM history WHERE timestamp=(SELECT MIN(timestamp) FROM history)";
-        retcode = sqlite3_exec(db, delete_statement, NULL, NULL, &errmsg);
-        if (retcode != SQLITE_OK) {
-            critical("sqlite error: %s\n", errmsg);
-            goto rollback;
-        }
-    }
-
-    /* prepare the SQL statement */
-    const char* insert_statement =
-        "INSERT OR REPLACE INTO history "
-        "(data, data_size, preview, mime_type, timestamp) "
-        "VALUES (?, ?, ?, ?, ?)";
-    retcode = sqlite3_prepare_v2(db, insert_statement, -1, &stmt, NULL);
-    if (retcode != SQLITE_OK) {
-        die("sqlite error: %s\n", sqlite3_errmsg(db));
-    }
-
-    /* bind parameters */
-    sqlite3_bind_blob(stmt, 1, entry->data, entry->data_size, SQLITE_STATIC);
-    sqlite3_bind_int64(stmt, 2, entry->data_size);
-    sqlite3_bind_text(stmt, 3, entry->preview, -1, SQLITE_STATIC);
-    sqlite3_bind_text(stmt, 4, entry->mime_type, -1, SQLITE_STATIC);
-    sqlite3_bind_int64(stmt, 5, entry->timestamp);
-
-    /* execute the statement */
-    retcode = sqlite3_step(stmt);
-    if (retcode != SQLITE_DONE) {
-        critical("sqlite error: %s\n", sqlite3_errmsg(db));
-        goto rollback;
-    } else {
-        debug("record inserted successfully\n");
-    }
-    sqlite3_finalize(stmt);
-
-    retcode = sqlite3_exec(db, "COMMIT", NULL, NULL, &errmsg);
-    if (retcode != SQLITE_OK) {
-        critical("sqlite error: %s\n", sqlite3_errmsg(db));
-        goto rollback;
-    }
-    return;
-
-rollback:
-    retcode = sqlite3_exec(db, "ROLLBACK", NULL, NULL, &errmsg);
-    if (retcode != SQLITE_OK) {
-        die("sqlite error: %s\n", errmsg);
-    } else {
-        exit(1);
-    }
-}
-
 size_t receive_data(char** buffer, char* mime_type) {
     /* reads offer into buffer, returns number of bytes read */
     debug("start receiving offer...\n");
@@ -275,7 +190,9 @@ void receive_offer(void) {
     new_entry->timestamp = timestamp;
     new_entry->preview = generate_preview(buffer, bytes_read, mime_type);
 
-    insert_db_entry(new_entry);
+    if (insert_db_entry(new_entry, config.max_entries_count) != 0) {
+        die("failed to insert entry into database!\n");
+    };
 out:
     if (mime_type != NULL) {
         free(mime_type);
