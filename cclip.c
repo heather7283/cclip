@@ -30,11 +30,6 @@
 #define CCLIP_VERSION "uknown_version"
 #endif
 
-#define LIST_MAX_SELECTED_FIELDS 5
-const char* list_allowed_fields[LIST_MAX_SELECTED_FIELDS] = {
-    "rowid", "timestamp", "mime_type", "preview", "data_size"
-};
-
 unsigned int DEBUG_LEVEL = 0;
 
 int argc;
@@ -56,7 +51,12 @@ int print_row(void* data, int argc, char** argv, char** column_names) {
 }
 
 int list(char* fields) {
-    char* selected_fields[LIST_MAX_SELECTED_FIELDS];
+    static const char* const allowed_fields[] = {
+        "rowid", "timestamp", "mime_type", "preview", "data_size"
+    };
+    static const int allowed_fields_count = sizeof(allowed_fields) / sizeof(char*);
+
+    char* selected_fields[allowed_fields_count];
     int selected_fields_count = 0;
 
     if (fields == NULL) {
@@ -66,10 +66,10 @@ int list(char* fields) {
         selected_fields_count = 3;
     } else {
         char* token = strtok(fields, ",");
-        while (token != NULL && selected_fields_count < LIST_MAX_SELECTED_FIELDS) {
+        while (token != NULL && selected_fields_count < allowed_fields_count) {
             bool is_valid_token = false;
-            for (int i = 0; i < LIST_MAX_SELECTED_FIELDS; i++) {
-                if (strcmp(token, list_allowed_fields[i]) == 0) {
+            for (int i = 0; i < allowed_fields_count; i++) {
+                if (strcmp(token, allowed_fields[i]) == 0) {
                     selected_fields[selected_fields_count] = token;
                     selected_fields_count += 1;
                     is_valid_token = true;
@@ -235,7 +235,7 @@ void print_help_and_exit(int exit_status) {
         "    wipe          delete all entries from database\n"
         "    vacuum        repack database into minimal amount of space\n";
 
-    fprintf(stderr, help_string, LIST_MAX_SELECTED_FIELDS);
+    fputs(help_string, stderr);
     exit(exit_status);
 }
 
