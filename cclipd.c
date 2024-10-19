@@ -459,6 +459,7 @@ int main(int _argc, char** _argv) {
     sigemptyset(&mask);
     sigaddset(&mask, SIGINT);
     sigaddset(&mask, SIGTERM);
+    sigaddset(&mask, SIGUSR1);
     if (sigprocmask(SIG_BLOCK, &mask, NULL) == -1) {
         critical("failed to block signals: %s\n", strerror(errno));
         goto cleanup;
@@ -528,14 +529,20 @@ int main(int _argc, char** _argv) {
                 }
 
                 uint32_t signo = siginfo.ssi_signo;
-                if (signo == SIGINT || signo == SIGTERM) {
+                switch (signo) {
+                case SIGINT:
+                case SIGTERM:
                     info("received signal %d, exiting\n", signo);
                     goto cleanup;
+                case SIGUSR1:
+                    info("received SIGUSR1, closing and reopening db connection\n");
+                    sqlite3_close_v2(db);
+                    db_init(config.db_path, false);
+                    break;
                 }
             }
         }
     }
-
 cleanup:
     sqlite3_close_v2(db);
     wayland_cleanup();

@@ -49,6 +49,16 @@ disabled by default.
 
 *-V* Will cause *cclipd* to print its version and then exit.
 
+# SIGNALS
+
+*cclipd* has special handling for the following signals:
+
+*SIGINT*, *SIGTERM*
+	Will cause *cclipd* to exit cleanly with code 0
+
+*SIGUSR1*
+	Will cause *cclipd* to close and reopen database connection.
+
 # EXAMPLES
 
 Try to accept *image/png* MIME type if available,
