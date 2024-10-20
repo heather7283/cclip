@@ -43,11 +43,17 @@ disabled by default.
 
 *-e* Will make *cclipd* error out if database does not exist instead of creating it.
 
-*-v* Will increase verbosity of *cclipd* output.
+*-v* Will increase verbosity of output.
 
 *-h* Will cause *cclipd* to print help message and then exit.
 
 *-V* Will cause *cclipd* to print its version and then exit.
+
+# EXIT STATUS
+
+As a daemon, *cclipd* normally does not exit unless killed with a signal.
+However, *cclipd* will exit with code 1 if it encounters a critical error.
+In this case, error message will also be printed to stderr.
 
 # SIGNALS
 
@@ -98,12 +104,6 @@ You can check if your compositor supports wlr_data_control_unstable_v1 here:
 
 https://wayland.app/protocols/wlr-data-control-unstable-v1#compositor-support
 
-# EXIT STATUS
-
-As a daemon, *cclipd* normally does not exit unless killed with a signal.
-However, *cclipd* will exit with code 1 if it encounters a critical error.
-In this case, error message will also be printed to stderr.
-
 # SECURITY
 
 Since *cclipd* stores clipboard data in an unencrypted sqlite database,
@@ -148,5 +148,5 @@ When reporting bugs:
 
 # SEE ALSO
 
-*cclip*(1)
+*cclip*(1), *wl-clipboard*(1)
 
