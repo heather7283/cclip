@@ -142,7 +142,7 @@ Please report bugs to https://github.com/heather7283/cclip/issues.
 
 When reporting bugs:
 
-- Attach output of *cclipd* with *-v* flag.
+- Attach output of *cclipd* with double *-v* flag (trace log level).
 - Provide backtrace with symbols if you experience a crash.
 - Describe steps necessary to reproduce the issue.
 

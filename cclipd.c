@@ -94,7 +94,7 @@ char* pick_mime_type(void) {
 }
 
 void free_offered_mime_types(void) {
-    debug("freeing string in offered_mime_types array\n");
+    trace("freeing string in offered_mime_types array\n");
     while (offered_mime_types_count > 0) {
         offered_mime_types_count -= 1;
         free(offered_mime_types[offered_mime_types_count]);
@@ -103,7 +103,7 @@ void free_offered_mime_types(void) {
 
 size_t receive_data(char** buffer, char* mime_type) {
     /* reads offer into buffer, returns number of bytes read */
-    debug("start receiving offer...\n");
+    trace("start receiving offer...\n");
 
     int pipes[2];
     if (pipe(pipes) == -1) {
@@ -142,12 +142,12 @@ size_t receive_data(char** buffer, char* mime_type) {
     }
 
     if (bytes_read == -1) {
-        die("error reading from pipe\n");
+        die("error reading from pipe: %s\n", strerror(errno));
     }
 
     close(pipes[0]);
 
-    debug("done receiving offer\n");
+    trace("done receiving offer\n");
     debug("received %" PRIu64 " bytes\n", total_read);
 
     return total_read;
@@ -214,7 +214,7 @@ void mime_type_offer_handler(void* data, struct zwlr_data_control_offer_v1* offe
                              const char* mime_type) {
     UNUSED(data);
 
-    debug("got mime type offer %s for offer %p\n", mime_type, (void*)offer);
+    trace("got mime type offer %s for offer %p\n", mime_type, (void*)offer);
 
     if (offer == NULL) {
         warn("offer is NULL!\n");
@@ -278,7 +278,7 @@ void selection_handler(void* data, struct zwlr_data_control_device_v1* device,
     debug("got selection event for offer %p\n", (void*)new_offer);
 
     if (offer != NULL) {
-        debug("destroying previous offer %p\n", (void*)offer);
+        trace("destroying previous offer %p\n", (void*)offer);
         zwlr_data_control_offer_v1_destroy(offer);
     }
     offer = new_offer;
@@ -308,10 +308,14 @@ void primary_selection_handler(void* data, struct zwlr_data_control_device_v1* d
     UNUSED(data);
     UNUSED(device);
 
-    debug("got primary selection event for offer %p\n", (void*)new_offer);
+    if (config.primary_selection) {
+        debug("got primary selection event for offer %p\n", (void*)new_offer);
+    } else {
+        debug("ignoring primary selection event for offer %p\n", (void*)new_offer);
+    }
 
     if (offer != NULL) {
-        debug("destroying previous offer %p\n", (void*)offer);
+        trace("destroying previous offer %p\n", (void*)offer);
         zwlr_data_control_offer_v1_destroy(offer);
     }
     offer = new_offer;
