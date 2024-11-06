@@ -15,6 +15,9 @@ cclip was heavily inspired by [cliphist](https://github.com/sentriz/cliphist) an
 - Supports text, images, and any other MIME type, really
 - Blazingly fa.. oh nvm I can't say that, it's written in C
 
+## Installation
+[Releases](https://github.com/heather7283/cclip/releases) page provides statically linked binaries for x86_64. You can download them and put them somewhere in your PATH. If you want to build cclip yourself, continue reading.
+
 ## Building
 > [!NOTE]
 > Make sure you have **libwayland-client**, **libsqlite3** and **wayland-scanner** installed before proceeding.
