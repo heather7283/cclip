@@ -12,8 +12,13 @@ add_project_arguments('-DCCLIP_VERSION="@0@"'.format(meson.project_version()), l
 
 wayland_scanner = find_program('wayland-scanner')
 
-sqlite3_dep = dependency('sqlite3')
-wayland_client_dep = dependency('wayland-client')
+static_link = get_option('static')
+if static_link
+    add_project_link_arguments('-static', language: 'c')
+endif
+
+sqlite3_dep = dependency('sqlite3', static: static_link)
+wayland_client_dep = dependency('wayland-client', static: static_link)
 
 if get_option('man')
   scdoc = find_program('scdoc')
