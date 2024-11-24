@@ -356,7 +356,8 @@ void print_help_and_exit(int exit_status) {
         "                   its size in bytes is not less than SIZE\n"
         "    -c ENTRIES     max count of entries to keep in database\n"
         "    -P PREVIEW_LEN max length of preview to generate in bytes\n"
-        "    -p             also monitor primary selection\n";
+        "    -p             also monitor primary selection\n"
+        "    -e             error out if database file does not exist\n";
 
     fputs(help_string, stderr);
     exit(exit_status);
