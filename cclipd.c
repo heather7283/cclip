@@ -61,6 +61,7 @@ struct {
     bool primary_selection;
     int max_entries_count;
     bool create_db_if_not_exists;
+    size_t preview_len;
 } config;
 
 void config_init(void) {
@@ -71,6 +72,7 @@ void config_init(void) {
     config.primary_selection = false;
     config.max_entries_count = 1000;
     config.create_db_if_not_exists = true;
+    config.preview_len = 128;
 }
 
 char* pick_mime_type(void) {
@@ -188,7 +190,7 @@ void receive_offer(void) {
     new_entry->data_size = bytes_read;
     new_entry->mime_type = mime_type;
     new_entry->timestamp = timestamp;
-    new_entry->preview = generate_preview(buffer, bytes_read, mime_type);
+    new_entry->preview = generate_preview(buffer, config.preview_len, bytes_read, mime_type);
 
     if (insert_db_entry(new_entry, config.max_entries_count) != 0) {
         die("failed to insert entry into database!\n");
@@ -341,19 +343,20 @@ void print_help_and_exit(int exit_status) {
         "cclipd - clipboard manager daemon\n"
         "\n"
         "usage:\n"
-        "    cclipd [-vVhp] [-d DB_PATH] [-t PATTERN] [-s SIZE] [-c ENTRIES]\n"
+        "    cclipd [OPTIONS]\n"
         "\n"
         "command line options:\n"
-        "    -V            display version and exit\n"
-        "    -h            print this help message and exit\n"
-        "    -v            increase verbosity\n"
-        "    -d DB_PATH    specify path to databse file\n"
-        "    -t PATTERN    specify MIME type pattern to accept,\n"
-        "                  can be supplied multiple times\n"
-        "    -s SIZE       clipboard entry will only be saved if\n"
-        "                  its size in bytes is not less than SIZE\n"
-        "    -c ENTRIES    max count of entries to keep in database\n"
-        "    -p            also monitor primary selection\n";
+        "    -V             display version and exit\n"
+        "    -h             print this help message and exit\n"
+        "    -v             increase verbosity\n"
+        "    -d DB_PATH     specify path to databse file\n"
+        "    -t PATTERN     specify MIME type pattern to accept,\n"
+        "                   can be supplied multiple times\n"
+        "    -s SIZE        clipboard entry will only be saved if\n"
+        "                   its size in bytes is not less than SIZE\n"
+        "    -c ENTRIES     max count of entries to keep in database\n"
+        "    -P PREVIEW_LEN max length of preview to generate in bytes\n"
+        "    -p             also monitor primary selection\n";
 
     fputs(help_string, stderr);
     exit(exit_status);
@@ -362,7 +365,7 @@ void print_help_and_exit(int exit_status) {
 void parse_command_line(void) {
     int opt;
 
-    while ((opt = getopt(argc, argv, ":d:t:s:c:pevVh")) != -1) {
+    while ((opt = getopt(argc, argv, ":d:t:s:c:P:pevVh")) != -1) {
         switch (opt) {
         case 'd':
             debug("db file path supplied on command line: %s\n", optarg);
@@ -397,6 +400,12 @@ void parse_command_line(void) {
             config.max_entries_count = atoi(optarg);
             if (config.max_entries_count < 1) {
                 die("ENTRIES must be a positive integer, got %s\n", optarg);
+            }
+            break;
+        case 'P':
+            config.preview_len = atoi(optarg);
+            if (config.preview_len < 1) {
+                die("PREVIEW_LEN must be a positive integer, got %s\n", optarg);
             }
             break;
         case 'p':

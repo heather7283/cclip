@@ -118,19 +118,19 @@ static size_t lstrip(char* str) {
     return write;
 }
 
-char* generate_preview(const void* const data, const int64_t data_size,
-                       const char* const mime_type) {
-    char* preview = calloc(PREVIEW_LEN, sizeof(char));
+char* generate_preview(const void* const data, size_t preview_len,
+                       const size_t data_size, const char* const mime_type) {
+    char* preview = calloc(preview_len, sizeof(char));
     if (preview == NULL) {
         die("failed to allocate memory for preview string\n");
     }
 
     if (fnmatch("*text*", mime_type, 0) == 0) {
-        strncpy(preview, data, min(data_size, PREVIEW_LEN));
+        strncpy(preview, data, min(data_size, preview_len));
         sanitise_string(preview);
         lstrip(preview);
     } else {
-        snprintf(preview, PREVIEW_LEN, "%s | %" PRIi64 " bytes", mime_type, data_size);
+        snprintf(preview, preview_len, "%s | %" PRIi64 " bytes", mime_type, data_size);
     }
 
     debug("generated preview: %s\n", preview);

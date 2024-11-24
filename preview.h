@@ -18,9 +18,9 @@
 #ifndef PREVIEW_H
 #define PREVIEW_H
 
-#include <stdint.h>
+#include <stddef.h>
 
-char* generate_preview(const void* const data, const int64_t data_size,
-                       const char* const mime_type);
+char* generate_preview(const void* const data, size_t preview_len,
+                       const size_t data_size, const char* const mime_type);
 
 #endif /* #ifndef PREVIEW_H */

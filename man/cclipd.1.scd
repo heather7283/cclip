@@ -38,6 +38,10 @@ Default is *1* (accept everything).
 	oldest entry will be deleted when new one is added.++
 Default is *1000*.
 
+*-P* _PREVIEW_LEN_
+	Maximum length of previews that will be generated, in bytes.++
+Default is *128*.
+
 *-p* Will tell *cclipd* to also monitor primary selection for changes, which is
 disabled by default.
 
