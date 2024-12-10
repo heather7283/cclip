@@ -1,6 +1,6 @@
 project(
     'cclip', 'c',
-    version: '1.2.1-next',
+    version: '1.3.0',
     license: 'GPL-3.0-or-later',
     default_options: ['buildtype=release', 'warning_level=3']
 )
