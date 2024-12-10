@@ -15,7 +15,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-#include <ctype.h>
 #include <string.h>
 #include <stdbool.h>
 #include <stdlib.h>
@@ -25,97 +24,120 @@
 #include "preview.h"
 #include "common.h"
 
-#define PREVIEW_LEN 128
+static void generate_text_preview(char* out_buf, const char* in_buf,
+                                  size_t preview_len, size_t data_len) {
+    size_t in_pos = 0;
+    size_t out_pos = 0;
+    bool last_was_space = true;
 
-static size_t sanitise_string(char* str) {
-    /*
-     * makes sure garbage characters don't leak into preview
-     * returns size of modified string because it can change
-     */
-    if (str == NULL) {
-        return 0;
-    }
+    preview_len -= 1; /* null terminator */
 
-    size_t read = 0;
-    size_t write = 0;
+    while (in_pos < data_len && out_pos < preview_len) {
+        unsigned char c = (unsigned char)in_buf[in_pos];
 
-    while (str[read] != '\0') {
-        if (isprint((unsigned char)str[read]) || str[read] == ' ') {
-            /* printable ASCII character or space */
-            str[write] = str[read];
-            write += 1;
-            read += 1;
-        } else if (isspace((unsigned char)str[read])) {
-            /* other whitespace characters (newline, tab, etc.) */
-            str[write] = ' ';
-            write += 1;
-            read += 1;
-        } else {
-            /* Check for UTF-8 multi-byte sequence */
-            int utf8_len = 0;
-            unsigned char first_byte = (unsigned char)str[read];
-
-            if ((first_byte & 0x80) == 0) {
-                utf8_len = 1;  /* ASCII char (0xxxxxxx) */
-            } else if ((first_byte & 0xE0) == 0xC0) {
-                utf8_len = 2;  /* 2-byte UTF-8 (110xxxxx) */
-            } else if ((first_byte & 0xF0) == 0xE0) {
-                utf8_len = 3;  /* 3-byte UTF-8 (1110xxxx) */
-            } else if ((first_byte & 0xF8) == 0xF0) {
-                utf8_len = 4;  /* 4-byte UTF-8 (11110xxx) */
-            }
-
-            if (utf8_len > 1 && read + utf8_len <= strlen(str)) {
-                /* valid multibyte UTF-8 sequence */
-                for (int i = 0; i < utf8_len; i++) {
-                    str[write] = str[read];
-                    write += 1;
-                    read += 1;
+        /* ASCII control characters (also space) */
+        if (c <= 0x20 || c == 0x7F) {
+            if (c == '\t' || c == '\n' || c == '\r' || c == ' ') {
+                if (!last_was_space) {
+                    out_buf[out_pos++] = ' ';
+                    last_was_space = true;
                 }
-            } else {
-                /* invalid or unprintable character */
-                str[write] = '?';
-                write += 1;
-                read += 1;
             }
+            in_pos++;
+            continue;
         }
+
+        /* ASCII printable characters */
+        if (c <= 0x7F) {
+            out_buf[out_pos++] = c;
+            last_was_space = false;
+            in_pos++;
+            continue;
+        }
+
+        /* UTF-8 from here */
+        size_t seq_len = 0;
+        uint32_t code_point = 0;
+        if ((c & 0xE0) == 0xC0) {
+            seq_len = 2;
+            code_point = c & 0x1F;
+        } else if ((c & 0xF0) == 0xE0) {
+            seq_len = 3;
+            code_point = c & 0x0F;
+        } else if ((c & 0xF8) == 0xF0) {
+            seq_len = 4;
+            code_point = c & 0x07;
+        } else {
+            /* invalid UTF-8 */
+            out_buf[out_pos++] = '?';
+            in_pos++;
+            continue;
+        }
+
+        /* check if UTF-8 sequence fits into both buffers */
+        if (in_pos + seq_len > data_len || out_pos + seq_len > preview_len) {
+            out_buf[out_pos++] = '?';
+            break;
+        }
+
+        /* validate continuation bytes and build codepoint */
+        bool seq_valid = true;
+        for (size_t i = 1; i < seq_len; i++) {
+            unsigned char b = (unsigned char)in_buf[in_pos + i];
+            if ((b & 0xC0) != 0x80) {
+                seq_valid = false;
+                break;
+            }
+            /* I heckin love bitwise operations (no I don't) */
+            code_point = (code_point << 6) | (b & 0x3F);
+        }
+
+        /* check for illegal overlong encodings and invalid code points
+         * I'm getting serious brain damage from this shit and I hate UTF-8 */
+        bool valid_range = false;
+        if (seq_len == 2) {
+            valid_range = code_point >= 0x80 && code_point <= 0x7FF;
+        } else if (seq_len == 3) {
+            valid_range = code_point >= 0x800 && code_point <= 0xFFFF;
+        } else if (seq_len == 4) {
+            valid_range = code_point >= 0x10000 && code_point <= 0x10FFFF;
+        }
+        /* surrogate pairs (whatever that means, some windows bullshit) */
+        if (code_point >= 0xD800 && code_point <= 0xDFFF) {
+            valid_range = false;
+        }
+
+        if (seq_valid && valid_range) {
+            for (size_t i = 0; i < seq_len; i++) {
+                out_buf[out_pos++] = in_buf[in_pos++];
+            }
+        } else {
+            out_buf[out_pos++] = '?';
+            in_pos++;
+        }
+        last_was_space = false;
     }
 
-    /* dont forget the null terminator */
-    str[write] = '\0';
-
-    return write;
+    out_buf[out_pos] = '\0';
 }
 
-static size_t lstrip(char* str) {
-    /*
-     * removes leading whitespace from str
-     * returns modified string length
-     */
-    if (str == NULL) {
-        return 0;
+static void generate_binary_preview(char* out_buf, size_t preview_len,
+                                    size_t data_size, const char* const mime_type) {
+    const char* units[] = {"B", "KiB", "MiB"};
+    int units_index = 0;
+    double size = data_size;
+
+    while (size >= 1024 && units_index < 2) {
+        size /= 1024;
+        units_index += 1;
     }
 
-    size_t read = 0;
-    size_t write = 0;
-    bool non_whitespace_found = false;
-
-    while (str[read] != '\0') {
-        if (isspace((unsigned char)str[read]) && !non_whitespace_found) {
-            read += 1;
-        } else {
-            non_whitespace_found = true;
-
-            str[write] = str[read];
-            write += 1;
-            read += 1;
-        }
+    if (units_index == 0) {
+        snprintf(out_buf, preview_len, "%s | %" PRIu64 " B", mime_type, data_size);
+    } else {
+        snprintf(out_buf, preview_len, "%s | %" PRIu64 " B (%.2f %s)",
+                 mime_type, data_size, size, units[units_index]);
     }
-
-    /* dont forget the null terminator */
-    str[write] = '\0';
-
-    return write;
 }
 
 char* generate_preview(const void* const data, size_t preview_len,
@@ -125,12 +147,10 @@ char* generate_preview(const void* const data, size_t preview_len,
         die("failed to allocate memory for preview string\n");
     }
 
-    if (fnmatch("*text*", mime_type, 0) == 0) {
-        strncpy(preview, data, min(data_size, preview_len));
-        sanitise_string(preview);
-        lstrip(preview);
+    if (fnmatch("text/*", mime_type, 0) == 0) {
+        generate_text_preview(preview, data, preview_len, data_size);
     } else {
-        snprintf(preview, preview_len, "%s | %" PRIi64 " bytes", mime_type, data_size);
+        generate_binary_preview(preview, preview_len, data_size, mime_type);
     }
 
     debug("generated preview: %s\n", preview);
