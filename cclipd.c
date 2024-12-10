@@ -62,18 +62,16 @@ struct {
     int max_entries_count;
     bool create_db_if_not_exists;
     size_t preview_len;
-} config;
-
-void config_init(void) {
-    config.accepted_mime_types_len = 0;
-    config.accepted_mime_types = NULL;
-    config.min_data_size = 1;
-    config.db_path = NULL;
-    config.primary_selection = false;
-    config.max_entries_count = 1000;
-    config.create_db_if_not_exists = true;
-    config.preview_len = 128;
-}
+} config = {
+    .accepted_mime_types_len = 0,
+    .accepted_mime_types = NULL,
+    .min_data_size = 1,
+    .db_path = NULL,
+    .primary_selection = false,
+    .max_entries_count = 1000,
+    .create_db_if_not_exists = true,
+    .preview_len = 128,
+};
 
 char* pick_mime_type(void) {
     /*
@@ -445,7 +443,6 @@ int main(int _argc, char** _argv) {
 
     int exit_status = 0;
 
-    config_init();
     parse_command_line();
     if (config.db_path == NULL) {
         config.db_path = get_default_db_path();
