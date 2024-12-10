@@ -14,7 +14,7 @@ fzf \
   --delimiter "$(printf '\t')" \
   --scheme history \
   --preview 'exec bash ./previewer.sh {}' \
-  --bind "ctrl-d:execute-silent(cclip delete -s {1})+reload(${list_cmd})" \
+  --bind "ctrl-d:execute-silent(cclip -s delete {1})+reload(${list_cmd})" \
   --bind "ctrl-r:reload(${list_cmd})" \
   --bind "enter:become(cclip get {1} | wl-copy -t {2})"
 
