@@ -441,6 +441,9 @@ int main(int _argc, char** _argv) {
     argv = _argv;
     prog_name = argc > 0 ? argv[0] : "cclipd";
 
+    int epoll_fd = -1;
+    int signal_fd = -1;
+
     int exit_status = 0;
 
     parse_command_line();
@@ -477,14 +480,14 @@ int main(int _argc, char** _argv) {
     }
 
     /* set up signalfd */
-    int signal_fd = signalfd(-1, &mask, 0);
+    signal_fd = signalfd(-1, &mask, 0);
     if (signal_fd == -1) {
         critical("failed to set up signalfd: %s\n", strerror(errno));
         goto cleanup;
     }
 
     /* set up epoll */
-    int epoll_fd = epoll_create1(0);
+    epoll_fd = epoll_create1(0);
     if (epoll_fd == -1) {
         critical("failed to set up epoll: %s\n", strerror(errno));
         goto cleanup;
@@ -557,6 +560,28 @@ int main(int _argc, char** _argv) {
 cleanup:
     sqlite3_close_v2(db);
     wayland_cleanup();
+
+    if (signal_fd > 0) {
+        close(signal_fd);
+    }
+    if (epoll_fd > 0) {
+        close(epoll_fd);
+    }
+
+    /* some unnecessary frees to make valgrind shut up, also NULL checks just to be safe */
+    free_offered_mime_types();
+    if (config.db_path != NULL) {
+        free(config.db_path);
+    }
+    if (config.accepted_mime_types != NULL) {
+        for (int i = 0; i < config.accepted_mime_types_len; i++) {
+            if (config.accepted_mime_types[i] != NULL) {
+                free(config.accepted_mime_types[i]);
+            }
+        }
+        free(config.accepted_mime_types);
+    }
+
     exit(exit_status);
 }
 
