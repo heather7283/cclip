@@ -51,12 +51,17 @@ int print_row(void* data, int argc, char** argv, char** column_names) {
 }
 
 int list(char* fields) {
-    static const char* const allowed_fields[] = {
-        "rowid", "timestamp", "mime_type", "preview", "data_size"
+    /* IMPORTANT: EDIT THIS IF YOU EVER ADD MORE THAN 3 ALIASES */
+    static const char* allowed_fields[][4] = {
+        {     "rowid",  "id",           NULL },
+        { "timestamp",  "time",         NULL },
+        { "mime_type",  "mime", "type", NULL },
+        {   "preview",                  NULL },
+        { "data_size",  "size",         NULL },
     };
-    static const int allowed_fields_count = sizeof(allowed_fields) / sizeof(char*);
+    static const int allowed_fields_count = sizeof(allowed_fields) / sizeof(allowed_fields[0]);
 
-    char* selected_fields[allowed_fields_count];
+    const char* selected_fields[allowed_fields_count];
     int selected_fields_count = 0;
 
     if (fields == NULL) {
@@ -66,16 +71,24 @@ int list(char* fields) {
         selected_fields_count = 3;
     } else {
         char* token = strtok(fields, ",");
-        while (token != NULL && selected_fields_count < allowed_fields_count) {
+        while (token != NULL) {
+            if (selected_fields_count >= allowed_fields_count) {
+                critical("extra field: %s, up to %d allowed\n", token, allowed_fields_count);
+                return 1;
+            }
+
             bool is_valid_token = false;
             for (int i = 0; i < allowed_fields_count; i++) {
-                if (strcmp(token, allowed_fields[i]) == 0) {
-                    selected_fields[selected_fields_count] = token;
-                    selected_fields_count += 1;
-                    is_valid_token = true;
-                    break;
+                for (int j = 0; allowed_fields[i][j] != NULL; j++) {
+                    if (strcmp(token, allowed_fields[i][j]) == 0) {
+                        selected_fields[selected_fields_count] = allowed_fields[i][0];
+                        selected_fields_count += 1;
+                        is_valid_token = true;
+                        goto loop_out;
+                    }
                 }
-            }
+            } loop_out:
+
 
             if (!is_valid_token) {
                 critical("invalid field: %s\n", token);
