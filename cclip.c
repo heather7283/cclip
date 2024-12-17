@@ -43,10 +43,10 @@ int print_row(void* data, int argc, char** argv, char** column_names) {
     UNUSED(data);
     UNUSED(column_names);
 
-    for (int i = 0; i < argc; i++) {
+    for (int i = 0; i < argc - 1; i++) {
         printf("%s\t", argv[i]);
     }
-    printf("\n");
+    printf("%s\n", argv[argc - 1]);
     return 0;
 }
 
