@@ -452,7 +452,7 @@ int main(int _argc, char** _argv) {
     }
     if (config.accepted_mime_types == NULL) {
         config.accepted_mime_types = malloc(sizeof(char*) * 1);
-        config.accepted_mime_types[0] = "*";
+        config.accepted_mime_types[0] = strdup("*");
 
         config.accepted_mime_types_len = 1;
     }
