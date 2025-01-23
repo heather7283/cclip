@@ -78,7 +78,7 @@ cclipd -t 'image/png' -t 'image/*' -t 'text/*'
 When launched with those arguments, cclipd will try to accept `image/png` if available, then anything that starts with `image/`, and fall back to `text/*` as last resort.
 
 ### Better neovim integration
-Another cliphist issue I noticedd is visible when using nvim with `vim.o.clipboard = "unnamedplus"`. When you press `x` to delete a single character, it will be saved to cliphist database:
+Another cliphist issue I noticed is visible when using nvim with `vim.o.clipboard = "unnamedplus"`. When you press `x` to delete a single character, it will be saved to cliphist database:
 ```
 $ cliphist list
 92675   f
