@@ -49,8 +49,9 @@ char* prog_name;
 struct zwlr_data_control_offer_v1* offer = NULL;
 
 /* surely nobody will offer more than 32 mime types */
-#define OFFERED_MIME_TYPES_LEN 32
-char* offered_mime_types[OFFERED_MIME_TYPES_LEN];
+#define MAX_OFFERED_MIME_TYPES 32
+#define MAX_MIME_TYPE_LEN 256
+char offered_mime_types[MAX_OFFERED_MIME_TYPES][MAX_MIME_TYPE_LEN];
 int offered_mime_types_count = 0;
 
 struct {
@@ -91,14 +92,6 @@ char* pick_mime_type(void) {
         }
     }
     return NULL;
-}
-
-void free_offered_mime_types(void) {
-    trace("freeing string in offered_mime_types array\n");
-    while (offered_mime_types_count > 0) {
-        offered_mime_types_count -= 1;
-        free(offered_mime_types[offered_mime_types_count]);
-    }
 }
 
 size_t receive_data(char** buffer, char* mime_type) {
@@ -221,11 +214,12 @@ void mime_type_offer_handler(void* data, struct zwlr_data_control_offer_v1* offe
         return;
     }
 
-    if (offered_mime_types_count >= OFFERED_MIME_TYPES_LEN) {
+    if (offered_mime_types_count >= MAX_OFFERED_MIME_TYPES) {
         warn("offered_mime_types array is full, "
              "but another mime type was received! %s\n", mime_type);
     } else {
-        offered_mime_types[offered_mime_types_count] = strdup(mime_type);
+        snprintf(offered_mime_types[offered_mime_types_count],
+                 sizeof(offered_mime_types[offered_mime_types_count]), "%s", mime_type);
         offered_mime_types_count += 1;
     }
 }
@@ -251,7 +245,7 @@ void data_offer_handler(void* data, struct zwlr_data_control_device_v1* device,
 
     debug("got new wlr_data_control_offer %p\n", (void*)new_offer);
 
-    free_offered_mime_types();
+    offered_mime_types_count = 0;
 
 	zwlr_data_control_offer_v1_add_listener(new_offer, &data_control_offer_listener, NULL);
 }
@@ -569,7 +563,6 @@ cleanup:
     }
 
     /* some unnecessary frees to make valgrind shut up, also NULL checks just to be safe */
-    free_offered_mime_types();
     if (config.db_path != NULL) {
         free(config.db_path);
     }
