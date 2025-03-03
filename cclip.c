@@ -25,6 +25,7 @@
 
 #include "common.h"
 #include "db.h"
+#include "xmalloc.h"
 
 #ifndef CCLIP_VERSION
 #define CCLIP_VERSION "uknown_version"
@@ -258,7 +259,7 @@ void parse_command_line(void) {
     while ((opt = getopt(argc, argv, ":d:sVh")) != -1) {
         switch (opt) {
         case 'd':
-            db_path = strdup(optarg);
+            db_path = xstrdup(optarg);
             break;
         case 's':
             secure_delete = true;

@@ -33,6 +33,7 @@
 #include "common.h"
 #include "db.h"
 #include "preview.h"
+#include "xmalloc.h"
 
 #define EPOLL_MAX_EVENTS 16
 
@@ -112,10 +113,7 @@ size_t receive_data(char** buffer, char* mime_type) {
     const size_t INITIAL_BUFFER_SIZE = 1024;
     const int GROWTH_FACTOR = 2;
 
-    *buffer = malloc(INITIAL_BUFFER_SIZE);
-    if (*buffer == NULL) {
-        die("failed to allocate initial buffer\n");
-    }
+    *buffer = xmalloc(INITIAL_BUFFER_SIZE);
 
     size_t buffer_size = INITIAL_BUFFER_SIZE;
     size_t total_read = 0;
@@ -126,11 +124,7 @@ size_t receive_data(char** buffer, char* mime_type) {
 
         if (total_read == buffer_size) {
             buffer_size *= GROWTH_FACTOR;
-            char* new_buffer = realloc(*buffer, buffer_size);
-            if (new_buffer == NULL) {
-                die("failed to reallocate buffer\n");
-            }
-            *buffer = new_buffer;
+            *buffer = xrealloc(*buffer, buffer_size);
         }
     }
 
@@ -151,7 +145,7 @@ void receive_offer(void) {
     char* buffer = NULL;
     struct db_entry* new_entry = NULL;
 
-    mime_type = strdup(pick_mime_type());
+    mime_type = xstrdup(pick_mime_type());
 
     if (mime_type == NULL) {
         debug("didn't match any mime type, not receiving this offer\n");
@@ -170,10 +164,7 @@ void receive_offer(void) {
         goto out;
     }
 
-    new_entry = malloc(sizeof(struct db_entry));
-    if (new_entry == NULL) {
-        die("failed to allocate memory for db_entry struct\n");
-    }
+    new_entry = xmalloc(sizeof(struct db_entry));
 
     time_t timestamp = time(NULL);
 
@@ -362,24 +353,15 @@ void parse_command_line(void) {
         switch (opt) {
         case 'd':
             debug("db file path supplied on command line: %s\n", optarg);
-            config.db_path = strdup(optarg);
+            config.db_path = xstrdup(optarg);
             break;
         case 't':
             debug("accepted mime type pattern supplied on command line: %s\n", optarg);
 
-            char* new_mimetype = strdup(optarg);
-            if (new_mimetype == NULL) {
-                die("failed to allocate memory for accepted mime type pattern\n");
-            }
+            char* new_mimetype = xstrdup(optarg);
 
-            char** new_accepted_mime_types =
-                    realloc(config.accepted_mime_types,
-                            (config.accepted_mime_types_len + 1) * sizeof(char*));
-            if (new_accepted_mime_types == NULL) {
-                die("failed to allocate memory for accepted mime types array\n");
-            }
-
-            config.accepted_mime_types = new_accepted_mime_types;
+            config.accepted_mime_types = xrealloc(config.accepted_mime_types,
+                                                  (config.accepted_mime_types_len + 1) * sizeof(char*));
             config.accepted_mime_types[config.accepted_mime_types_len] = new_mimetype;
             config.accepted_mime_types_len += 1;
             break;
@@ -445,8 +427,8 @@ int main(int _argc, char** _argv) {
         config.db_path = get_default_db_path();
     }
     if (config.accepted_mime_types == NULL) {
-        config.accepted_mime_types = malloc(sizeof(char*) * 1);
-        config.accepted_mime_types[0] = strdup("*");
+        config.accepted_mime_types = xmalloc(sizeof(char*) * 1);
+        config.accepted_mime_types[0] = xstrdup("*");
 
         config.accepted_mime_types_len = 1;
     }

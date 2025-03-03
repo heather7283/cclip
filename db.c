@@ -27,18 +27,16 @@
 #include <libgen.h>
 #include <errno.h>
 
-#include "common.h"
 #include "db.h"
+#include "common.h"
+#include "xmalloc.h"
 
 #define MAX_DB_PATH_LENGTH 1024
 
 struct sqlite3* db = NULL;
 
 char* get_default_db_path(void) {
-    char* db_path = malloc(MAX_DB_PATH_LENGTH * sizeof(char));
-    if (db_path == NULL) {
-        die("failed to allocate memory for db path string\n");
-    }
+    char* db_path = xmalloc(MAX_DB_PATH_LENGTH * sizeof(char));
 
     char* xdg_data_home = getenv("XDG_DATA_HOME");
     if (xdg_data_home != NULL) {
@@ -67,7 +65,7 @@ void db_init(const char* const db_path, bool create_if_not_exists) {
         }
 
 
-        char* db_path_dup = strdup(db_path);
+        char* db_path_dup = xstrdup(db_path);
         char* db_dir = dirname(db_path_dup);
 
         char* mkdir_cmd[] = {"mkdir", "-p", db_dir, NULL};
