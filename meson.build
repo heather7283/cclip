@@ -2,7 +2,7 @@ project(
     'cclip', 'c',
     version: '1.3.0-next',
     license: 'GPL-3.0-or-later',
-    default_options: ['buildtype=release', 'warning_level=3']
+    default_options: ['warning_level=3']
 )
 
 # supported by both clang and gcc and makes my life easier
