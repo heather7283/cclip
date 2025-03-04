@@ -55,9 +55,10 @@ struct zwlr_data_control_offer_v1* offer = NULL;
 char offered_mime_types[MAX_OFFERED_MIME_TYPES][MAX_MIME_TYPE_LEN];
 int offered_mime_types_count = 0;
 
+#define MAX_ACCEPTED_MIME_TYPES 32
 struct {
-    int accepted_mime_types_len;
-    char** accepted_mime_types;
+    int accepted_mime_types_count;
+    char* accepted_mime_types[MAX_ACCEPTED_MIME_TYPES];
     size_t min_data_size;
     const char* db_path;
     bool primary_selection;
@@ -65,8 +66,8 @@ struct {
     bool create_db_if_not_exists;
     size_t preview_len;
 } config = {
-    .accepted_mime_types_len = 0,
-    .accepted_mime_types = NULL,
+    .accepted_mime_types_count = 0,
+    .accepted_mime_types = {0},
     .min_data_size = 1,
     .db_path = NULL,
     .primary_selection = false,
@@ -81,7 +82,7 @@ char* pick_mime_type(void) {
      * or returns NULL if none matched
      * yes it is O(n^2) I do not care
      */
-    for (int i = 0; i < config.accepted_mime_types_len; i++) {
+    for (int i = 0; i < config.accepted_mime_types_count; i++) {
         for (int j = 0; j < offered_mime_types_count; j++) {
             char* pattern = config.accepted_mime_types[i];
             char* type = offered_mime_types[j];
@@ -358,12 +359,8 @@ void parse_command_line(void) {
         case 't':
             debug("accepted mime type pattern supplied on command line: %s\n", optarg);
 
-            char* new_mimetype = xstrdup(optarg);
-
-            config.accepted_mime_types = xrealloc(config.accepted_mime_types,
-                                                  (config.accepted_mime_types_len + 1) * sizeof(char*));
-            config.accepted_mime_types[config.accepted_mime_types_len] = new_mimetype;
-            config.accepted_mime_types_len += 1;
+            config.accepted_mime_types[config.accepted_mime_types_count] = xstrdup(optarg);
+            config.accepted_mime_types_count += 1;
             break;
         case 's':
             config.min_data_size = atoi(optarg);
@@ -426,11 +423,9 @@ int main(int _argc, char** _argv) {
     if (config.db_path == NULL) {
         config.db_path = get_default_db_path();
     }
-    if (config.accepted_mime_types == NULL) {
-        config.accepted_mime_types = xmalloc(sizeof(char*) * 1);
+    if (config.accepted_mime_types_count == 0) {
         config.accepted_mime_types[0] = xstrdup("*");
-
-        config.accepted_mime_types_len = 1;
+        config.accepted_mime_types_count = 1;
     }
 
     debug("opening database at %s\n", config.db_path);
@@ -544,14 +539,9 @@ cleanup:
         close(epoll_fd);
     }
 
-    /* some unnecessary frees to make valgrind shut up, also NULL checks just to be safe */
-    if (config.accepted_mime_types != NULL) {
-        for (int i = 0; i < config.accepted_mime_types_len; i++) {
-            if (config.accepted_mime_types[i] != NULL) {
-                free(config.accepted_mime_types[i]);
-            }
-        }
-        free(config.accepted_mime_types);
+    /* some unnecessary frees to make valgrind shut up */
+    for (int i = 0; i < config.accepted_mime_types_count; i++) {
+        free(config.accepted_mime_types[i]);
     }
 
     exit(exit_status);
