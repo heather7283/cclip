@@ -33,10 +33,6 @@
 
 unsigned int DEBUG_LEVEL = 0;
 
-int argc;
-char** argv;
-char* prog_name;
-
 char* db_path = NULL;
 bool secure_delete = false;
 
@@ -253,7 +249,7 @@ void print_help_and_exit(int exit_status) {
     exit(exit_status);
 }
 
-void parse_command_line(void) {
+void parse_command_line(int argc, char** argv) {
     int opt;
 
     while ((opt = getopt(argc, argv, ":d:sVh")) != -1) {
@@ -285,14 +281,10 @@ void parse_command_line(void) {
 }
 
 
-int main(int _argc, char** _argv) {
-    argc = _argc;
-    argv = _argv;
-    prog_name = argc > 0 ? argv[0] : "cclip";
-
+int main(int argc, char** argv) {
     int exit_status = 0;
 
-    parse_command_line();
+    parse_command_line(argc, argv);
 
     if (db_path == NULL) {
         db_path = get_default_db_path();

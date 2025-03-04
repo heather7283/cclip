@@ -43,10 +43,6 @@
 
 unsigned int DEBUG_LEVEL = 0;
 
-int argc;
-char** argv;
-char* prog_name;
-
 struct zwlr_data_control_offer_v1* offer = NULL;
 
 /* surely nobody will offer more than 32 mime types */
@@ -347,7 +343,7 @@ void print_help_and_exit(int exit_status) {
     exit(exit_status);
 }
 
-void parse_command_line(void) {
+void parse_command_line(int argc, char** argv) {
     int opt;
 
     while ((opt = getopt(argc, argv, ":d:t:s:c:P:pevVh")) != -1) {
@@ -409,17 +405,13 @@ void parse_command_line(void) {
     }
 }
 
-int main(int _argc, char** _argv) {
-    argc = _argc;
-    argv = _argv;
-    prog_name = argc > 0 ? argv[0] : "cclipd";
-
+int main(int argc, char** argv) {
     int epoll_fd = -1;
     int signal_fd = -1;
 
     int exit_status = 0;
 
-    parse_command_line();
+    parse_command_line(argc, argv);
     if (config.db_path == NULL) {
         config.db_path = get_default_db_path();
     }
