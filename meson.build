@@ -56,19 +56,19 @@ client_header = custom_target('client_header',
 )
 
 executable('cclip',
-    'cclip.c',
-    'db.c',
-    'xmalloc.c',
+    'src/cclip.c',
+    'src/db.c',
+    'src/xmalloc.c',
     dependencies: [ sqlite3_dep ],
     install: true
 )
 
 executable('cclipd',
-    'cclipd.c',
-    'db.c',
-    'wayland.c',
-    'preview.c',
-    'xmalloc.c',
+    'src/cclipd.c',
+    'src/db.c',
+    'src/wayland.c',
+    'src/preview.c',
+    'src/xmalloc.c',
     private_code,
     client_header,
     dependencies: [ sqlite3_dep, wayland_client_dep ],
