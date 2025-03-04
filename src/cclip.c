@@ -33,7 +33,7 @@
 
 unsigned int DEBUG_LEVEL = 0;
 
-char* db_path = NULL;
+const char* db_path = NULL;
 bool secure_delete = false;
 
 int print_row(void* data, int argc, char** argv, char** column_names) {
