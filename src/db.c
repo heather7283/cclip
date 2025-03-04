@@ -17,16 +17,14 @@
  */
 #include <sys/wait.h>
 #include <limits.h>
-#include <stdio.h> /* snprintf */
-#include <stdlib.h> /* getenv */
-#include <unistd.h> /* getuid, access */
-#include <sys/types.h> /* getpwuid */
-#include <pwd.h> /* getpwuid */
-#include <string.h> /* strlen */
-#include <sqlite3.h> /* all the sqlite stuff */
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <string.h>
 #include <stdbool.h>
 #include <libgen.h>
 #include <errno.h>
+#include <sqlite3.h>
 
 #include "db.h"
 #include "common.h"
