@@ -216,7 +216,7 @@ void mime_type_offer_handler(void* data, struct zwlr_data_control_offer_v1* offe
 }
 
 const struct zwlr_data_control_offer_v1_listener data_control_offer_listener = {
-	.offer = mime_type_offer_handler,
+    .offer = mime_type_offer_handler,
 };
 
 /*
@@ -238,7 +238,7 @@ void data_offer_handler(void* data, struct zwlr_data_control_device_v1* device,
 
     offered_mime_types_count = 0;
 
-	zwlr_data_control_offer_v1_add_listener(new_offer, &data_control_offer_listener, NULL);
+    zwlr_data_control_offer_v1_add_listener(new_offer, &data_control_offer_listener, NULL);
 }
 
 /*
@@ -311,9 +311,9 @@ void primary_selection_handler(void* data, struct zwlr_data_control_device_v1* d
 }
 
 const struct zwlr_data_control_device_v1_listener data_control_device_listener = {
-	.data_offer = data_offer_handler,
-	.selection = selection_handler,
-	.primary_selection = primary_selection_handler,
+    .data_offer = data_offer_handler,
+    .selection = selection_handler,
+    .primary_selection = primary_selection_handler,
 };
 
 void print_version_and_exit(void) {
@@ -438,7 +438,7 @@ int main(int _argc, char** _argv) {
 
     wayland_init();
 
-	zwlr_data_control_device_v1_add_listener(data_control_device,
+    zwlr_data_control_device_v1_add_listener(data_control_device,
                                              &data_control_device_listener,
                                              NULL);
 
