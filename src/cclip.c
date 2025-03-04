@@ -50,7 +50,7 @@ int print_row(void* data, int argc, char** argv, char** column_names) {
 int list(char* fields) {
     /* IMPORTANT: EDIT THIS IF YOU EVER ADD MORE THAN 3 ALIASES */
     static const char* allowed_fields[][4] = {
-        {     "rowid",  "id",           NULL },
+        {     "rowid",    "id",         NULL },
         { "timestamp",  "time",         NULL },
         { "mime_type",  "mime", "type", NULL },
         {   "preview",                  NULL },
