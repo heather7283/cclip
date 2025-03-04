@@ -59,7 +59,7 @@ struct {
     int accepted_mime_types_len;
     char** accepted_mime_types;
     size_t min_data_size;
-    char* db_path;
+    const char* db_path;
     bool primary_selection;
     int max_entries_count;
     bool create_db_if_not_exists;
@@ -353,7 +353,7 @@ void parse_command_line(void) {
         switch (opt) {
         case 'd':
             debug("db file path supplied on command line: %s\n", optarg);
-            config.db_path = xstrdup(optarg);
+            config.db_path = optarg;
             break;
         case 't':
             debug("accepted mime type pattern supplied on command line: %s\n", optarg);
@@ -545,9 +545,6 @@ cleanup:
     }
 
     /* some unnecessary frees to make valgrind shut up, also NULL checks just to be safe */
-    if (config.db_path != NULL) {
-        free(config.db_path);
-    }
     if (config.accepted_mime_types != NULL) {
         for (int i = 0; i < config.accepted_mime_types_len; i++) {
             if (config.accepted_mime_types[i] != NULL) {

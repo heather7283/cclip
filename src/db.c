@@ -16,6 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 #include <sys/wait.h>
+#include <limits.h>
 #include <stdio.h> /* snprintf */
 #include <stdlib.h> /* getenv */
 #include <unistd.h> /* getuid, access */
@@ -31,22 +32,20 @@
 #include "common.h"
 #include "xmalloc.h"
 
-#define MAX_DB_PATH_LENGTH 1024
-
 struct sqlite3* db = NULL;
 
-char* get_default_db_path(void) {
-    char* db_path = xmalloc(MAX_DB_PATH_LENGTH * sizeof(char));
+const char* get_default_db_path(void) {
+    static char db_path[PATH_MAX];
 
     char* xdg_data_home = getenv("XDG_DATA_HOME");
     if (xdg_data_home != NULL) {
-        snprintf(db_path, MAX_DB_PATH_LENGTH, "%s/%s", xdg_data_home, "cclip/db.sqlite3");
+        snprintf(db_path, sizeof(db_path), "%s/%s", xdg_data_home, "cclip/db.sqlite3");
     } else {
         char* home = getenv("HOME");
         if (home == NULL) {
             die("both HOME and XDG_DATA_HOME are unset, unable to determine db file path\n");
         }
-        snprintf(db_path, MAX_DB_PATH_LENGTH, "%s/.local/share/%s", home, "cclip/db.sqlite3");
+        snprintf(db_path, sizeof(db_path), "%s/.local/share/%s", home, "cclip/db.sqlite3");
     }
 
     return db_path;

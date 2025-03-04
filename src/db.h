@@ -34,7 +34,7 @@ struct db_entry {
     time_t timestamp; /* unix seconds */
 };
 
-char* get_default_db_path(void);
+const char* get_default_db_path(void);
 void db_init(const char* const db_path, bool create_if_not_exists);
 int insert_db_entry(const struct db_entry* const entry, int max_entries_count);
 
