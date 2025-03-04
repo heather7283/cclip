@@ -43,8 +43,6 @@
 
 unsigned int DEBUG_LEVEL = 0;
 
-struct zwlr_data_control_offer_v1* offer = NULL;
-
 /* surely nobody will offer more than 32 mime types */
 #define MAX_OFFERED_MIME_TYPES 32
 #define MAX_MIME_TYPE_LEN 256
@@ -92,7 +90,7 @@ char* pick_mime_type(void) {
     return NULL;
 }
 
-size_t receive_data(char** buffer, char* mime_type) {
+size_t receive_data(struct zwlr_data_control_offer_v1* offer, char** buffer, char* mime_type) {
     /* reads offer into buffer, returns number of bytes read */
     trace("start receiving offer...\n");
 
@@ -137,7 +135,7 @@ size_t receive_data(char** buffer, char* mime_type) {
     return total_read;
 }
 
-void receive_offer(void) {
+void receive_offer(struct zwlr_data_control_offer_v1* offer) {
     char* mime_type = NULL;
     char* buffer = NULL;
     struct db_entry* new_entry = NULL;
@@ -149,7 +147,7 @@ void receive_offer(void) {
         goto out;
     }
 
-    size_t bytes_read = receive_data(&buffer, mime_type);
+    size_t bytes_read = receive_data(offer, &buffer, mime_type);
 
     if (bytes_read == 0) {
         warn("received 0 bytes\n");
@@ -227,15 +225,15 @@ const struct zwlr_data_control_offer_v1_listener data_control_offer_listener = {
  * types it offers.
  */
 void data_offer_handler(void* data, struct zwlr_data_control_device_v1* device,
-                        struct zwlr_data_control_offer_v1* new_offer) {
+                        struct zwlr_data_control_offer_v1* offer) {
     UNUSED(data);
     UNUSED(device);
 
-    debug("got new wlr_data_control_offer %p\n", (void*)new_offer);
+    debug("got new wlr_data_control_offer %p\n", (void*)offer);
 
     offered_mime_types_count = 0;
 
-    zwlr_data_control_offer_v1_add_listener(new_offer, &data_control_offer_listener, NULL);
+    zwlr_data_control_offer_v1_add_listener(offer, &data_control_offer_listener, NULL);
 }
 
 /*
@@ -253,21 +251,21 @@ void data_offer_handler(void* data, struct zwlr_data_control_device_v1* device,
  * wlr_data_control_device object.
  */
 void selection_handler(void* data, struct zwlr_data_control_device_v1* device,
-                       struct zwlr_data_control_offer_v1* new_offer) {
+                       struct zwlr_data_control_offer_v1* offer) {
     UNUSED(data);
     UNUSED(device);
 
-    debug("got selection event for offer %p\n", (void*)new_offer);
+    debug("got selection event for offer %p\n", (void*)offer);
 
-    if (offer != NULL) {
-        trace("destroying previous offer %p\n", (void*)offer);
-        zwlr_data_control_offer_v1_destroy(offer);
+    if (offer == NULL) {
+        return;
     }
-    offer = new_offer;
 
-    if (offer != NULL) {
-        receive_offer();
-    }
+    receive_offer(offer);
+
+    trace("destroying offer %p\n", (void*)offer);
+    zwlr_data_control_offer_v1_destroy(offer);
+
 }
 
 /*
@@ -286,25 +284,24 @@ void selection_handler(void* data, struct zwlr_data_control_device_v1* device,
  * wlr_data_control_device object.
  */
 void primary_selection_handler(void* data, struct zwlr_data_control_device_v1* device,
-                               struct zwlr_data_control_offer_v1* new_offer) {
+                               struct zwlr_data_control_offer_v1* offer) {
     UNUSED(data);
     UNUSED(device);
 
+    debug("got primary selection event for offer %p\n", (void*)offer);
+
+    if (offer == NULL) {
+        return;
+    }
+
     if (config.primary_selection) {
-        debug("got primary selection event for offer %p\n", (void*)new_offer);
+        receive_offer(offer);
     } else {
-        debug("ignoring primary selection event for offer %p\n", (void*)new_offer);
+        debug("ignoring primary selection event for offer %p\n", (void*)offer);
     }
 
-    if (offer != NULL) {
-        trace("destroying previous offer %p\n", (void*)offer);
-        zwlr_data_control_offer_v1_destroy(offer);
-    }
-    offer = new_offer;
-
-    if (config.primary_selection && offer != NULL) {
-        receive_offer();
-    }
+    trace("destroying offer %p\n", (void*)offer);
+    zwlr_data_control_offer_v1_destroy(offer);
 }
 
 const struct zwlr_data_control_device_v1_listener data_control_device_listener = {
