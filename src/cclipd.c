@@ -173,16 +173,12 @@ void receive_offer(struct zwlr_data_control_offer_v1* offer) {
         die("failed to insert entry into database!\n");
     };
 out:
-    if (mime_type != NULL) {
-        free(mime_type);
-    }
-    if (buffer != NULL) {
-        free(buffer);
-    }
+    free(mime_type);
+    free(buffer);
     if (new_entry != NULL) {
         free(new_entry->preview);
-        free(new_entry);
     }
+    free(new_entry);
 }
 
 /*
