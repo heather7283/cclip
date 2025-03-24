@@ -37,10 +37,6 @@
 
 #define EPOLL_MAX_EVENTS 16
 
-#ifndef CCLIP_VERSION
-#define CCLIP_VERSION "uknown_version"
-#endif
-
 unsigned int DEBUG_LEVEL = 0;
 
 /* surely nobody will offer more than 32 mime types */
@@ -307,7 +303,8 @@ const struct zwlr_data_control_device_v1_listener data_control_device_listener =
 };
 
 void print_version_and_exit(void) {
-    fprintf(stderr, "cclipd version %s\n", CCLIP_VERSION);
+    fprintf(stderr, "cclipd version %s, branch %s, commit %s\n",
+            CCLIP_VERSION, CCLIP_GIT_BRANCH, CCLIP_GIT_COMMIT_HASH);
     exit(0);
 }
 

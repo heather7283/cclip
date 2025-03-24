@@ -27,10 +27,6 @@
 #include "db.h"
 #include "xmalloc.h"
 
-#ifndef CCLIP_VERSION
-#define CCLIP_VERSION "uknown_version"
-#endif
-
 unsigned int DEBUG_LEVEL = 0;
 
 const char* db_path = NULL;
@@ -221,7 +217,8 @@ int vacuum(void) {
 }
 
 void print_version_and_exit(void) {
-    fprintf(stderr, "cclip version %s\n", CCLIP_VERSION);
+    fprintf(stderr, "cclip version %s, branch %s, commit %s\n",
+            CCLIP_VERSION, CCLIP_GIT_BRANCH, CCLIP_GIT_COMMIT_HASH);
     exit(0);
 }
 

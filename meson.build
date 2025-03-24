@@ -8,7 +8,20 @@ project(
 # supported by both clang and gcc and makes my life easier
 add_project_arguments('-Wno-gnu-zero-variadic-macro-arguments', language: 'c')
 
+# version, branch and commit info
 add_project_arguments('-DCCLIP_VERSION="@0@"'.format(meson.project_version()), language: 'c')
+
+git_hash = run_command('git', 'rev-parse', 'HEAD', check: false).stdout().strip()
+if git_hash == ''
+    git_hash = 'unknown'
+endif
+add_project_arguments('-DCCLIP_GIT_COMMIT_HASH="@0@"'.format(git_hash), language: 'c')
+
+git_branch = run_command('git', 'rev-parse', '--abbrev-ref', 'HEAD', check: false).stdout().strip()
+if git_branch == ''
+  git_branch = 'unknown'
+endif
+add_project_arguments('-DCCLIP_GIT_BRANCH="@0@"'.format(git_branch), language: 'c')
 
 wayland_scanner = find_program('wayland-scanner')
 
