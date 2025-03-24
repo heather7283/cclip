@@ -21,26 +21,26 @@ sqlite3_dep = dependency('sqlite3', static: static_link)
 wayland_client_dep = dependency('wayland-client', static: static_link)
 
 if get_option('man')
-  scdoc = find_program('scdoc')
+    scdoc = find_program('scdoc')
 
-  foreach man_src : [{'name': 'cclipd', 'section': 1},
-                     {'name': 'cclip', 'section': 1}]
-      name = man_src['name']
-      section = man_src['section']
+    foreach man_src : [{'name': 'cclipd', 'section': 1},
+                       {'name': 'cclip', 'section': 1}]
+        name = man_src['name']
+        section = man_src['section']
 
-      in_file = join_paths('man', '@0@.@1@.scd'.format(name, section))
-      out_file = '@0@.@1@'.format(name, section)
+        in_file = join_paths('man', '@0@.@1@.scd'.format(name, section))
+        out_file = '@0@.@1@'.format(name, section)
 
-      custom_target(out_file,
-          output: out_file,
-          input: in_file,
-          command: [ scdoc ],
-          capture: true,
-          feed: true,
-          install: true,
-          install_dir: join_paths(get_option('mandir'), 'man@0@'.format(section))
-      )
-  endforeach
+        custom_target(out_file,
+            output: out_file,
+            input: in_file,
+            command: [ scdoc ],
+            capture: true,
+            feed: true,
+            install: true,
+            install_dir: join_paths(get_option('mandir'), 'man@0@'.format(section))
+        )
+    endforeach
 endif
 
 private_code = custom_target('private_code',
