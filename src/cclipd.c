@@ -411,7 +411,7 @@ int main(int argc, char** argv) {
     }
 
     debug("opening database at %s\n", config.db_path);
-    db_init(config.db_path, config.create_db_if_not_exists);
+    db_init(config.db_path, config.create_db_if_not_exists, true);
 
     wayland_init();
 
@@ -504,7 +504,7 @@ int main(int argc, char** argv) {
                 case SIGUSR1:
                     info("received SIGUSR1, closing and reopening db connection\n");
                     sqlite3_close_v2(db);
-                    db_init(config.db_path, false);
+                    db_init(config.db_path, false, false);
                     break;
                 }
             }

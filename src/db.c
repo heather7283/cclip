@@ -56,7 +56,7 @@ const char* get_default_db_path(void) {
     return db_path;
 }
 
-void db_init(const char* const db_path, bool create_if_not_exists) {
+void db_init(const char* const db_path, bool create_if_not_exists, bool prepare_statements) {
     char* errmsg = NULL;
     int rc = 0;
 
@@ -139,25 +139,27 @@ void db_init(const char* const db_path, bool create_if_not_exists) {
         die("sqlite error: %s\n", errmsg);
     }
 
-    /* prepare statements in advance */
-    const char* insert_stmt =
-        "INSERT OR REPLACE INTO history "
-        "(data, data_size, preview, mime_type, timestamp) "
-        "VALUES (?, ?, ?, ?, ?)";
-    rc = sqlite3_prepare_v2(db, insert_stmt, -1, &statements[STMT_INSERT], NULL);
-    if (rc != SQLITE_OK) {
-        die("sqlite error: %s\n", sqlite3_errmsg(db));
-    }
+    if (prepare_statements) {
+        /* prepare statements in advance */
+        const char* insert_stmt =
+            "INSERT OR REPLACE INTO history "
+            "(data, data_size, preview, mime_type, timestamp) "
+            "VALUES (?, ?, ?, ?, ?)";
+        rc = sqlite3_prepare_v2(db, insert_stmt, -1, &statements[STMT_INSERT], NULL);
+        if (rc != SQLITE_OK) {
+            die("sqlite error: %s\n", sqlite3_errmsg(db));
+        }
 
-    const char* delete_oldest_stmt =
-        "DELETE FROM history WHERE rowid IN ("
-        "   SELECT rowid FROM history "
-        "   ORDER BY timestamp DESC "
-        "   LIMIT -1 OFFSET ?"
-        ")";
-    rc = sqlite3_prepare_v2(db, delete_oldest_stmt, -1, &statements[STMT_DELETE_OLDEST], NULL);
-    if (rc != SQLITE_OK) {
-        die("sqlite error: %s\n", sqlite3_errmsg(db));
+        const char* delete_oldest_stmt =
+            "DELETE FROM history WHERE rowid IN ("
+            "   SELECT rowid FROM history "
+            "   ORDER BY timestamp DESC "
+            "   LIMIT -1 OFFSET ?"
+            ")";
+        rc = sqlite3_prepare_v2(db, delete_oldest_stmt, -1, &statements[STMT_DELETE_OLDEST], NULL);
+        if (rc != SQLITE_OK) {
+            die("sqlite error: %s\n", sqlite3_errmsg(db));
+        }
     }
 }
 
