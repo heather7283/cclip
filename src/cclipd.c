@@ -165,7 +165,7 @@ void receive_offer(struct zwlr_data_control_offer_v1* offer) {
     new_entry->timestamp = timestamp;
     new_entry->preview = generate_preview(buffer, config.preview_len, bytes_read, mime_type);
 
-    if (insert_db_entry(new_entry, config.max_entries_count) != 0) {
+    if (insert_db_entry(new_entry, config.max_entries_count) < 0) {
         die("failed to insert entry into database!\n");
     };
 out:
