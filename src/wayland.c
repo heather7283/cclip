@@ -123,3 +123,4 @@ void wayland_cleanup(void) {
         wl_display_disconnect(display);
     }
 }
+

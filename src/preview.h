@@ -24,3 +24,4 @@ char* generate_preview(const void* const data, size_t preview_len,
                        const size_t data_size, const char* const mime_type);
 
 #endif /* #ifndef PREVIEW_H */
+

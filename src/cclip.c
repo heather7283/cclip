@@ -364,3 +364,4 @@ cleanup:
     sqlite3_close_v2(db);
     exit(exit_status);
 }
+

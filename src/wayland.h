@@ -29,3 +29,4 @@ void wayland_init(void);
 void wayland_cleanup(void);
 
 #endif /* #ifndef WAYLAND_H */
+

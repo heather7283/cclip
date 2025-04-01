@@ -206,3 +206,4 @@ int insert_db_entry(const struct db_entry* const entry, int max_entries_count) {
 
     return 0;
 }
+
