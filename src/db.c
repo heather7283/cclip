@@ -30,6 +30,13 @@
 #include "common.h"
 #include "xmalloc.h"
 
+enum {
+    STMT_INSERT,
+    STMT_DELETE_OLDEST,
+    STMT_END,
+};
+static sqlite3_stmt* statements[STMT_END];
+
 struct sqlite3* db = NULL;
 
 const char* get_default_db_path(void) {
@@ -51,7 +58,7 @@ const char* get_default_db_path(void) {
 
 void db_init(const char* const db_path, bool create_if_not_exists) {
     char* errmsg = NULL;
-    int ret_code = 0;
+    int rc = 0;
 
     if (access(db_path, F_OK) == -1) {
         if (!create_if_not_exists) {
@@ -90,18 +97,18 @@ void db_init(const char* const db_path, bool create_if_not_exists) {
         fclose(db_file);
     }
 
-    ret_code = sqlite3_open(db_path, &db);
-    if (ret_code != SQLITE_OK) {
-        die("sqlite error: %s\n", sqlite3_errstr(ret_code));
+    rc = sqlite3_open(db_path, &db);
+    if (rc != SQLITE_OK) {
+        die("sqlite error: %s\n", sqlite3_errstr(rc));
     }
 
     /* enable WAL https://sqlite.org/wal.html */
-    ret_code = sqlite3_exec(db, "PRAGMA journal_mode=WAL", NULL, NULL, &errmsg);
-    if (ret_code != SQLITE_OK) {
+    rc = sqlite3_exec(db, "PRAGMA journal_mode=WAL", NULL, NULL, &errmsg);
+    if (rc != SQLITE_OK) {
         die("sqlite error: %s\n", errmsg);
     }
-    ret_code = sqlite3_exec(db, "PRAGMA synchronous=NORMAL", NULL, NULL, &errmsg);
-    if (ret_code != SQLITE_OK) {
+    rc = sqlite3_exec(db, "PRAGMA synchronous=NORMAL", NULL, NULL, &errmsg);
+    if (rc != SQLITE_OK) {
         die("sqlite error: %s\n", errmsg);
     }
 
@@ -113,80 +120,88 @@ void db_init(const char* const db_path, bool create_if_not_exists) {
         "    mime_type TEXT    NOT NULL,"
         "    timestamp INTEGER NOT NULL"
         ")";
-    ret_code = sqlite3_exec(db, db_create_expr, NULL, NULL, &errmsg);
-    if (ret_code != SQLITE_OK) {
+    rc = sqlite3_exec(db, db_create_expr, NULL, NULL, &errmsg);
+    if (rc != SQLITE_OK) {
         die("sqlite error: %s\n", errmsg);
     }
 
     const char* db_create_data_index_expr =
         "CREATE UNIQUE INDEX IF NOT EXISTS idx_history_data ON history(data)";
-    ret_code = sqlite3_exec(db, db_create_data_index_expr, NULL, NULL, &errmsg);
-    if (ret_code != SQLITE_OK) {
+    rc = sqlite3_exec(db, db_create_data_index_expr, NULL, NULL, &errmsg);
+    if (rc != SQLITE_OK) {
         die("sqlite error: %s\n", errmsg);
     }
 
     const char* db_create_timestamp_index_expr =
         "CREATE UNIQUE INDEX IF NOT EXISTS idx_history_timestamp ON history(timestamp)";
-    ret_code = sqlite3_exec(db, db_create_timestamp_index_expr, NULL, NULL, &errmsg);
-    if (ret_code != SQLITE_OK) {
+    rc = sqlite3_exec(db, db_create_timestamp_index_expr, NULL, NULL, &errmsg);
+    if (rc != SQLITE_OK) {
         die("sqlite error: %s\n", errmsg);
     }
-}
 
-int insert_db_entry(const struct db_entry* const entry, int max_entries_count) {
-    sqlite3_stmt* stmt = NULL;
-    int retcode = 0;
-
-    /* prepare the SQL statement */
-    const char* insert_statement =
+    /* prepare statements in advance */
+    const char* insert_stmt =
         "INSERT OR REPLACE INTO history "
         "(data, data_size, preview, mime_type, timestamp) "
         "VALUES (?, ?, ?, ?, ?)";
-    retcode = sqlite3_prepare_v2(db, insert_statement, -1, &stmt, NULL);
-    if (retcode != SQLITE_OK) {
+    rc = sqlite3_prepare_v2(db, insert_stmt, -1, &statements[STMT_INSERT], NULL);
+    if (rc != SQLITE_OK) {
         die("sqlite error: %s\n", sqlite3_errmsg(db));
     }
 
+    const char* delete_oldest_stmt =
+        "DELETE FROM history WHERE rowid IN ("
+        "   SELECT rowid FROM history "
+        "   ORDER BY timestamp DESC "
+        "   LIMIT -1 OFFSET ?"
+        ")";
+    rc = sqlite3_prepare_v2(db, delete_oldest_stmt, -1, &statements[STMT_DELETE_OLDEST], NULL);
+    if (rc != SQLITE_OK) {
+        die("sqlite error: %s\n", sqlite3_errmsg(db));
+    }
+}
+
+void db_cleanup(void) {
+    for (int i = 0; i < STMT_END; i++) {
+        sqlite3_finalize(statements[i]);
+    }
+    sqlite3_close_v2(db);
+}
+
+int insert_db_entry(const struct db_entry* const entry, int max_entries_count) {
+    int rc = 0;
+
     /* bind parameters */
-    sqlite3_bind_blob(stmt, 1, entry->data, entry->data_size, SQLITE_STATIC);
-    sqlite3_bind_int64(stmt, 2, entry->data_size);
-    sqlite3_bind_text(stmt, 3, entry->preview, -1, SQLITE_STATIC);
-    sqlite3_bind_text(stmt, 4, entry->mime_type, -1, SQLITE_STATIC);
-    sqlite3_bind_int64(stmt, 5, entry->timestamp);
+    sqlite3_bind_blob(statements[STMT_INSERT], 1, entry->data, entry->data_size, SQLITE_STATIC);
+    sqlite3_bind_int64(statements[STMT_INSERT], 2, entry->data_size);
+    sqlite3_bind_text(statements[STMT_INSERT], 3, entry->preview, -1, SQLITE_STATIC);
+    sqlite3_bind_text(statements[STMT_INSERT], 4, entry->mime_type, -1, SQLITE_STATIC);
+    sqlite3_bind_int64(statements[STMT_INSERT], 5, entry->timestamp);
 
     /* execute the statement */
-    retcode = sqlite3_step(stmt);
-    if (retcode != SQLITE_DONE) {
+    sqlite3_step(statements[STMT_INSERT]);
+
+    sqlite3_clear_bindings(statements[STMT_INSERT]);
+    rc = sqlite3_reset(statements[STMT_INSERT]);
+    if (rc != SQLITE_OK) {
         critical("sqlite error: %s\n", sqlite3_errmsg(db));
         return -1;
     } else {
         debug("record inserted successfully\n");
     }
-    sqlite3_finalize(stmt);
 
     if (max_entries_count > 0) {
-        /* this will delete oldest entries exceeding entry count limit */
-        const char* delete_oldest_stmt =
-            "DELETE FROM history WHERE rowid IN ("
-            "   SELECT rowid FROM history "
-            "   ORDER BY timestamp DESC "
-            "   LIMIT -1 OFFSET ?"
-            ")";
-        retcode = sqlite3_prepare_v2(db, delete_oldest_stmt, -1, &stmt, NULL);
-        if (retcode != SQLITE_OK) {
-            critical("sqlite error: %s\n", sqlite3_errmsg(db));
-            return -1;
-        }
-
         /* bind the limit */
-        sqlite3_bind_int(stmt, 1, max_entries_count);
+        sqlite3_bind_int(statements[STMT_DELETE_OLDEST], 1, max_entries_count);
 
-        retcode = sqlite3_step(stmt);
-        if (retcode != SQLITE_DONE) {
+        sqlite3_step(statements[STMT_DELETE_OLDEST]);
+
+        sqlite3_clear_bindings(statements[STMT_DELETE_OLDEST]);
+        rc = sqlite3_reset(statements[STMT_DELETE_OLDEST]);
+        if (rc != SQLITE_OK) {
             critical("sqlite error: %s\n", sqlite3_errmsg(db));
             return -1;
         }
-        sqlite3_finalize(stmt);
     }
 
     return 0;

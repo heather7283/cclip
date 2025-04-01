@@ -511,7 +511,7 @@ int main(int argc, char** argv) {
         }
     }
 cleanup:
-    sqlite3_close_v2(db);
+    db_cleanup();
     wayland_cleanup();
 
     if (signal_fd > 0) {

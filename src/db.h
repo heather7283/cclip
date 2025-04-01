@@ -35,6 +35,7 @@ struct db_entry {
 };
 
 const char* get_default_db_path(void);
+void db_cleanup(void);
 void db_init(const char* const db_path, bool create_if_not_exists);
 int insert_db_entry(const struct db_entry* const entry, int max_entries_count);
 
