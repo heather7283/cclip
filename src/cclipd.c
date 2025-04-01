@@ -304,7 +304,7 @@ const struct zwlr_data_control_device_v1_listener data_control_device_listener =
 
 void print_version_and_exit(void) {
     fprintf(stderr, "cclipd version %s, branch %s, commit %s\n",
-            CCLIP_VERSION, CCLIP_GIT_BRANCH, CCLIP_GIT_COMMIT_HASH);
+            CCLIP_GIT_TAG, CCLIP_GIT_BRANCH, CCLIP_GIT_COMMIT_HASH);
     exit(0);
 }
 

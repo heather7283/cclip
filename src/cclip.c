@@ -218,7 +218,7 @@ int vacuum(void) {
 
 void print_version_and_exit(void) {
     fprintf(stderr, "cclip version %s, branch %s, commit %s\n",
-            CCLIP_VERSION, CCLIP_GIT_BRANCH, CCLIP_GIT_COMMIT_HASH);
+            CCLIP_GIT_TAG, CCLIP_GIT_BRANCH, CCLIP_GIT_COMMIT_HASH);
     exit(0);
 }
 

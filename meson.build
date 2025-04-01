@@ -9,17 +9,21 @@ project(
 add_project_arguments('-Wno-gnu-zero-variadic-macro-arguments', language: 'c')
 
 # version, branch and commit info
-add_project_arguments('-DCCLIP_VERSION="@0@"'.format(meson.project_version()), language: 'c')
-
 git_hash = run_command('git', 'rev-parse', 'HEAD', check: false).stdout().strip()
 if git_hash == ''
     git_hash = 'unknown'
 endif
 add_project_arguments('-DCCLIP_GIT_COMMIT_HASH="@0@"'.format(git_hash), language: 'c')
 
-git_branch = run_command('git', 'rev-parse', '--abbrev-ref', 'HEAD', check: false).stdout().strip()
+git_tag = run_command('git', 'describe', '--tags', check: false).stdout().strip()
+if git_tag == ''
+    git_tag = 'unknown'
+endif
+add_project_arguments('-DCCLIP_GIT_TAG="@0@"'.format(git_tag), language: 'c')
+
+git_branch = run_command('git', 'branch', '--show-current', check: false).stdout().strip()
 if git_branch == ''
-  git_branch = 'unknown'
+    git_branch = 'unknown'
 endif
 add_project_arguments('-DCCLIP_GIT_BRANCH="@0@"'.format(git_branch), language: 'c')
 
