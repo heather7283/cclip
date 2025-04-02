@@ -32,10 +32,9 @@ unsigned int DEBUG_LEVEL = 0;
 const char* db_path = NULL;
 bool secure_delete = false;
 
-int print_row(void* data, int argc, char** argv, char** column_names) {
-    UNUSED(data);
-    UNUSED(column_names);
+struct sqlite3* db = NULL;
 
+int print_row(void* data, int argc, char** argv, char** column_names) {
     for (int i = 0; i < argc - 1; i++) {
         printf("%s\t", argv[i]);
     }

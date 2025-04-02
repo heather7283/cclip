@@ -28,279 +28,15 @@
 #include <signal.h>
 #include <errno.h>
 
-#include <wlr-data-control-unstable-v1-client-protocol.h>
 #include "wayland.h"
 #include "common.h"
 #include "db.h"
-#include "preview.h"
+#include "config.h"
 #include "xmalloc.h"
 
 #define EPOLL_MAX_EVENTS 16
 
 unsigned int DEBUG_LEVEL = 0;
-
-/* surely nobody will offer more than 32 mime types */
-#define MAX_OFFERED_MIME_TYPES 32
-#define MAX_MIME_TYPE_LEN 256
-char offered_mime_types[MAX_OFFERED_MIME_TYPES][MAX_MIME_TYPE_LEN];
-int offered_mime_types_count = 0;
-
-#define MAX_ACCEPTED_MIME_TYPES 32
-struct {
-    int accepted_mime_types_count;
-    char* accepted_mime_types[MAX_ACCEPTED_MIME_TYPES];
-    size_t min_data_size;
-    const char* db_path;
-    bool primary_selection;
-    int max_entries_count;
-    bool create_db_if_not_exists;
-    size_t preview_len;
-} config = {
-    .accepted_mime_types_count = 0,
-    .accepted_mime_types = {0},
-    .min_data_size = 1,
-    .db_path = NULL,
-    .primary_selection = false,
-    .max_entries_count = 1000,
-    .create_db_if_not_exists = true,
-    .preview_len = 128,
-};
-
-char* pick_mime_type(void) {
-    /*
-     * finds first offered mime type that matches
-     * or returns NULL if none matched
-     * yes it is O(n^2) I do not care
-     */
-    for (int i = 0; i < config.accepted_mime_types_count; i++) {
-        for (int j = 0; j < offered_mime_types_count; j++) {
-            char* pattern = config.accepted_mime_types[i];
-            char* type = offered_mime_types[j];
-
-            if (fnmatch(pattern, type, 0) == 0) {
-                debug("selected mime type: %s\n", type);
-                return type;
-            }
-        }
-    }
-    return NULL;
-}
-
-size_t receive_data(struct zwlr_data_control_offer_v1* offer, char** buffer, char* mime_type) {
-    /* reads offer into buffer, returns number of bytes read */
-    trace("start receiving offer...\n");
-
-    int pipes[2];
-    if (pipe(pipes) == -1) {
-        die("failed to create pipe\n");
-    }
-
-    zwlr_data_control_offer_v1_receive(offer, mime_type, pipes[1]);
-    /* AFTER THIS LINE offer IS NO LONGER VALID!!! */
-    wl_display_roundtrip(display);
-    close(pipes[1]);
-
-    /* is it really a good idea to multiply buffer size by 2 every time? */
-    const size_t INITIAL_BUFFER_SIZE = 4096;
-    const int GROWTH_FACTOR = 2;
-
-    *buffer = xmalloc(INITIAL_BUFFER_SIZE);
-
-    size_t buffer_size = INITIAL_BUFFER_SIZE;
-    size_t total_read = 0;
-    ssize_t bytes_read;
-
-    while ((bytes_read = read(pipes[0], *buffer + total_read, buffer_size - total_read)) > 0) {
-        total_read += bytes_read;
-
-        if (total_read == buffer_size) {
-            buffer_size *= GROWTH_FACTOR;
-            *buffer = xrealloc(*buffer, buffer_size);
-        }
-    }
-
-    if (bytes_read == -1) {
-        die("error reading from pipe: %s\n", strerror(errno));
-    }
-
-    close(pipes[0]);
-
-    trace("done receiving offer\n");
-    debug("received %" PRIu64 " bytes\n", total_read);
-
-    return total_read;
-}
-
-void receive_offer(struct zwlr_data_control_offer_v1* offer) {
-    char* mime_type = NULL;
-    char* buffer = NULL;
-    struct db_entry* new_entry = NULL;
-
-    mime_type = xstrdup(pick_mime_type());
-
-    if (mime_type == NULL) {
-        debug("didn't match any mime type, not receiving this offer\n");
-        goto out;
-    }
-
-    size_t bytes_read = receive_data(offer, &buffer, mime_type);
-
-    if (bytes_read == 0) {
-        warn("received 0 bytes\n");
-        goto out;
-    }
-
-    if (bytes_read < config.min_data_size) {
-        debug("received less bytes than min_data_size, not saving this entry\n");
-        goto out;
-    }
-
-    new_entry = xmalloc(sizeof(struct db_entry));
-
-    time_t timestamp = time(NULL);
-
-    new_entry->data = buffer;
-    new_entry->data_size = bytes_read;
-    new_entry->mime_type = mime_type;
-    new_entry->timestamp = timestamp;
-    new_entry->preview = generate_preview(buffer, config.preview_len, bytes_read, mime_type);
-
-    if (insert_db_entry(new_entry, config.max_entries_count) < 0) {
-        die("failed to insert entry into database!\n");
-    };
-out:
-    free(mime_type);
-    free(buffer);
-    if (new_entry != NULL) {
-        free(new_entry->preview);
-    }
-    free(new_entry);
-}
-
-/*
- * Sent immediately after creating the wlr_data_control_offer object.
- * One event per offered MIME type.
- */
-void mime_type_offer_handler(void* data, struct zwlr_data_control_offer_v1* offer,
-                             const char* mime_type) {
-    UNUSED(data);
-
-    trace("got mime type offer %s for offer %p\n", mime_type, (void*)offer);
-
-    if (offer == NULL) {
-        warn("offer is NULL!\n");
-        return;
-    }
-
-    if (offered_mime_types_count >= MAX_OFFERED_MIME_TYPES) {
-        warn("offered_mime_types array is full, "
-             "but another mime type was received! %s\n", mime_type);
-    } else {
-        snprintf(offered_mime_types[offered_mime_types_count],
-                 sizeof(offered_mime_types[offered_mime_types_count]), "%s", mime_type);
-        offered_mime_types_count += 1;
-    }
-}
-
-const struct zwlr_data_control_offer_v1_listener data_control_offer_listener = {
-    .offer = mime_type_offer_handler,
-};
-
-/*
- * The data_offer event introduces a new wlr_data_control_offer object,
- * which will subsequently be used in either the
- * wlr_data_control_device.selection event (for the regular clipboard
- * selections) or the wlr_data_control_device.primary_selection event (for
- * the primary clipboard selections). Immediately following the
- * wlr_data_control_device.data_offer event, the new data_offer object
- * will send out wlr_data_control_offer.offer events to describe the MIME
- * types it offers.
- */
-void data_offer_handler(void* data, struct zwlr_data_control_device_v1* device,
-                        struct zwlr_data_control_offer_v1* offer) {
-    UNUSED(data);
-    UNUSED(device);
-
-    debug("got new wlr_data_control_offer %p\n", (void*)offer);
-
-    offered_mime_types_count = 0;
-
-    zwlr_data_control_offer_v1_add_listener(offer, &data_control_offer_listener, NULL);
-}
-
-/*
- * The selection event is sent out to notify the client of a new
- * wlr_data_control_offer for the selection for this device. The
- * wlr_data_control_device.data_offer and the wlr_data_control_offer.offer
- * events are sent out immediately before this event to introduce the data
- * offer object. The selection event is sent to a client when a new
- * selection is set. The wlr_data_control_offer is valid until a new
- * wlr_data_control_offer or NULL is received. The client must destroy the
- * previous selection wlr_data_control_offer, if any, upon receiving this
- * event.
- *
- * The first selection event is sent upon binding the
- * wlr_data_control_device object.
- */
-void selection_handler(void* data, struct zwlr_data_control_device_v1* device,
-                       struct zwlr_data_control_offer_v1* offer) {
-    UNUSED(data);
-    UNUSED(device);
-
-    debug("got selection event for offer %p\n", (void*)offer);
-
-    if (offer == NULL) {
-        return;
-    }
-
-    receive_offer(offer);
-
-    trace("destroying offer %p\n", (void*)offer);
-    zwlr_data_control_offer_v1_destroy(offer);
-
-}
-
-/*
- * The primary_selection event is sent out to notify the client of a new
- * wlr_data_control_offer for the primary selection for this device. The
- * wlr_data_control_device.data_offer and the wlr_data_control_offer.offer
- * events are sent out immediately before this event to introduce the data
- * offer object. The primary_selection event is sent to a client when a
- * new primary selection is set. The wlr_data_control_offer is valid until
- * a new wlr_data_control_offer or NULL is received. The client must
- * destroy the previous primary selection wlr_data_control_offer, if any,
- * upon receiving this event.
- *
- * If the compositor supports primary selection, the first
- * primary_selection event is sent upon binding the
- * wlr_data_control_device object.
- */
-void primary_selection_handler(void* data, struct zwlr_data_control_device_v1* device,
-                               struct zwlr_data_control_offer_v1* offer) {
-    UNUSED(data);
-    UNUSED(device);
-
-    debug("got primary selection event for offer %p\n", (void*)offer);
-
-    if (offer == NULL) {
-        return;
-    }
-
-    if (config.primary_selection) {
-        receive_offer(offer);
-    } else {
-        debug("ignoring primary selection event for offer %p\n", (void*)offer);
-    }
-
-    trace("destroying offer %p\n", (void*)offer);
-    zwlr_data_control_offer_v1_destroy(offer);
-}
-
-const struct zwlr_data_control_device_v1_listener data_control_device_listener = {
-    .data_offer = data_offer_handler,
-    .selection = selection_handler,
-    .primary_selection = primary_selection_handler,
-};
 
 void print_version_and_exit(void) {
     fprintf(stderr, "cclipd version %s, branch %s, commit %s\n",
@@ -411,15 +147,9 @@ int main(int argc, char** argv) {
     }
 
     debug("opening database at %s\n", config.db_path);
-    db_init(config.db_path, config.create_db_if_not_exists, true);
+    db_init(config.db_path, config.create_db_if_not_exists);
 
     wayland_init();
-
-    zwlr_data_control_device_v1_add_listener(data_control_device,
-                                             &data_control_device_listener,
-                                             NULL);
-
-    wl_display_roundtrip(display);
 
     /* block signals so we can catch them later */
     sigset_t mask;
@@ -449,8 +179,8 @@ int main(int argc, char** argv) {
     struct epoll_event epoll_event;
     /* add wayland fd to epoll interest list */
     epoll_event.events = EPOLLIN;
-    epoll_event.data.fd = wayland_fd;
-    if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, wayland_fd, &epoll_event) == -1) {
+    epoll_event.data.fd = wayland.fd;
+    if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, wayland.fd, &epoll_event) == -1) {
         critical("failed to add wayland fd to epoll list: %s\n", strerror(errno));
         goto cleanup;
     }
@@ -478,10 +208,10 @@ int main(int argc, char** argv) {
 
         /* handle events */
         for (int n = 0; n < number_fds; n++) {
-            if (events[n].data.fd == wayland_fd) {
+            if (events[n].data.fd == wayland.fd) {
                 /* wayland events */
-                if (wl_display_dispatch(display) == -1) {
-                    critical("wl_display_dispatch failed\n");
+                if (wayland_process_events() < 0) {
+                    critical("failed to process wayland events\n");
                     exit_status = 1;
                     goto cleanup;
                 }
@@ -503,8 +233,8 @@ int main(int argc, char** argv) {
                     goto cleanup;
                 case SIGUSR1:
                     info("received SIGUSR1, closing and reopening db connection\n");
-                    sqlite3_close_v2(db);
-                    db_init(config.db_path, false, false);
+                    db_cleanup();
+                    db_init(config.db_path, config.create_db_if_not_exists);
                     break;
                 }
             }

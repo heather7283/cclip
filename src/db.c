@@ -38,9 +38,9 @@ enum {
     STMT_ROLLBACK,
     STMT_END,
 };
-static sqlite3_stmt* statements[STMT_END];
+static sqlite3_stmt* statements[STMT_END] = {0};
 
-struct sqlite3* db = NULL;
+static struct sqlite3* db = NULL;
 
 const char* get_default_db_path(void) {
     static char db_path[PATH_MAX];
@@ -102,7 +102,7 @@ static void db_prepare_statements(void) {
     }
 }
 
-void db_init(const char* const db_path, bool create_if_not_exists, bool prepare_statements) {
+void db_init(const char* const db_path, bool create_if_not_exists) {
     char* errmsg = NULL;
     int rc = 0;
 
@@ -113,7 +113,6 @@ void db_init(const char* const db_path, bool create_if_not_exists, bool prepare_
             info("database file %s does not exist, "
                  "attempting to create\n", db_path);
         }
-
 
         char* db_path_dup = xstrdup(db_path);
         char* db_dir = dirname(db_path_dup);
@@ -178,16 +177,16 @@ void db_init(const char* const db_path, bool create_if_not_exists, bool prepare_
         die("sql: failed to create timestamp index: %s\n", errmsg);
     }
 
-    if (prepare_statements) {
-        db_prepare_statements();
-    }
+    db_prepare_statements();
 }
 
 void db_cleanup(void) {
     for (int i = 0; i < STMT_END; i++) {
         sqlite3_finalize(statements[i]);
+        statements[i] = NULL;
     }
     sqlite3_close_v2(db);
+    db = NULL;
 }
 
 int insert_db_entry(const struct db_entry* const entry, int max_entries_count) {

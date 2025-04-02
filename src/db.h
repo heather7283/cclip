@@ -23,20 +23,20 @@
 #include <stdbool.h>
 #include <sqlite3.h>
 
-extern struct sqlite3* db;
-
 struct db_entry {
     int64_t rowid; /* https://www.sqlite.org/lang_createtable.html#rowid */
-    void* data; /* arbitrary data */
+    const void* data; /* arbitrary data */
     int64_t data_size; /* size of data in bytes */
     char* preview; /* string */
-    char* mime_type; /* string */
+    const char* mime_type; /* string */
     time_t timestamp; /* unix seconds */
 };
 
 const char* get_default_db_path(void);
+
 void db_cleanup(void);
-void db_init(const char* const db_path, bool create_if_not_exists, bool prepare_statements);
+void db_init(const char* const db_path, bool create_if_not_exists);
+
 int insert_db_entry(const struct db_entry* const entry, int max_entries_count);
 
 #endif /* #ifndef DB_H */

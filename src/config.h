@@ -15,27 +15,25 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-#ifndef WAYLAND_H
-#define WAYLAND_H
+#ifndef CONFIG_H
+#define CONFIG_H
 
 #include <stdbool.h>
+#include <stddef.h>
 
-struct wayland {
-    int fd;
-    struct wl_display* display;
-    struct wl_seat* seat;
-    struct wl_registry* registry;
-    struct zwlr_data_control_manager_v1* data_control_manager;
-    struct zwlr_data_control_device_v1* data_control_device;
-
-    bool seat_found;
+#define MAX_ACCEPTED_MIME_TYPES 64
+struct config {
+    int accepted_mime_types_count;
+    char* accepted_mime_types[MAX_ACCEPTED_MIME_TYPES];
+    size_t min_data_size;
+    const char* db_path;
+    bool primary_selection;
+    int max_entries_count;
+    bool create_db_if_not_exists;
+    size_t preview_len;
 };
 
-extern struct wayland wayland;
+extern struct config config;
 
-void wayland_init(void);
-void wayland_cleanup(void);
-int wayland_process_events(void);
-
-#endif /* #ifndef WAYLAND_H */
+#endif /* #ifndef CONFIG_H */
 

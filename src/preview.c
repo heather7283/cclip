@@ -24,7 +24,7 @@
 #include "common.h"
 #include "xmalloc.h"
 
-static void generate_text_preview(char* out_buf, const char* in_buf,
+static void generate_text_preview(char* out_buf, const char* const in_buf,
                                   size_t preview_len, size_t data_len) {
     size_t in_pos = 0;
     size_t out_pos = 0;
@@ -121,9 +121,9 @@ static void generate_text_preview(char* out_buf, const char* in_buf,
     out_buf[out_pos] = '\0';
 }
 
-static void generate_binary_preview(char* out_buf, size_t preview_len,
+static void generate_binary_preview(char* const out_buf, size_t preview_len,
                                     size_t data_size, const char* const mime_type) {
-    const char* units[] = {"B", "KiB", "MiB"};
+    static const char* units[] = {"B", "KiB", "MiB"};
     int units_index = 0;
     double size = data_size;
 
@@ -141,7 +141,7 @@ static void generate_binary_preview(char* out_buf, size_t preview_len,
 }
 
 char* generate_preview(const void* const data, size_t preview_len,
-                       const size_t data_size, const char* const mime_type) {
+                       size_t data_size, const char* const mime_type) {
     char* preview = xcalloc(preview_len, sizeof(char));
 
     if (fnmatch("text/*", mime_type, 0) == 0) {
