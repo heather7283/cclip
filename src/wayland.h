@@ -18,8 +18,6 @@
 #ifndef WAYLAND_H
 #define WAYLAND_H
 
-#include <stdbool.h>
-
 int wayland_init(void);
 void wayland_cleanup(void);
 int wayland_process_events(void);

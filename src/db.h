@@ -21,7 +21,6 @@
 #include <stdint.h>
 #include <time.h>
 #include <stdbool.h>
-#include <sqlite3.h>
 
 struct db_entry {
     int64_t rowid; /* https://www.sqlite.org/lang_createtable.html#rowid */

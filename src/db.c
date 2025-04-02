@@ -17,12 +17,8 @@
  */
 #include <sys/wait.h>
 #include <limits.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
-#include <stdbool.h>
-#include <libgen.h>
 #include <errno.h>
 #include <sqlite3.h>
 
