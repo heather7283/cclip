@@ -7,6 +7,7 @@ project(
 
 # supported by both clang and gcc and makes my life easier
 add_project_arguments('-Wno-gnu-zero-variadic-macro-arguments', language: 'c')
+add_project_arguments('-Wno-unused-parameter', language: 'c')
 
 # version, branch and commit info
 git_hash = run_command('git', 'rev-parse', 'HEAD', check: false).stdout().strip()
@@ -85,6 +86,7 @@ executable('cclipd',
     'src/db.c',
     'src/wayland.c',
     'src/preview.c',
+    'src/config.c',
     'src/xmalloc.c',
     private_code,
     client_header,
