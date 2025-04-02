@@ -33,6 +33,9 @@
 enum {
     STMT_INSERT,
     STMT_DELETE_OLDEST,
+    STMT_BEGIN,
+    STMT_COMMIT,
+    STMT_ROLLBACK,
     STMT_END,
 };
 static sqlite3_stmt* statements[STMT_END];
@@ -54,6 +57,49 @@ const char* get_default_db_path(void) {
     }
 
     return db_path;
+}
+
+static void db_prepare_statements(void) {
+    int rc;
+
+    /* prepare statements in advance */
+    const char* insert_stmt =
+        "INSERT OR REPLACE INTO history "
+        "(data, data_size, preview, mime_type, timestamp) "
+        "VALUES (?, ?, ?, ?, ?)";
+    rc = sqlite3_prepare_v2(db, insert_stmt, -1, &statements[STMT_INSERT], NULL);
+    if (rc != SQLITE_OK) {
+        die("sqlite error: %s\n", sqlite3_errmsg(db));
+    }
+
+    const char* delete_oldest_stmt =
+        "DELETE FROM history WHERE rowid IN ("
+        "   SELECT rowid FROM history "
+        "   ORDER BY timestamp DESC "
+        "   LIMIT -1 OFFSET ?"
+        ")";
+    rc = sqlite3_prepare_v2(db, delete_oldest_stmt, -1, &statements[STMT_DELETE_OLDEST], NULL);
+    if (rc != SQLITE_OK) {
+        die("sqlite error: %s\n", sqlite3_errmsg(db));
+    }
+
+    const char* begin_stmt = "BEGIN";
+    rc = sqlite3_prepare_v2(db, begin_stmt, -1, &statements[STMT_BEGIN], NULL);
+    if (rc != SQLITE_OK) {
+        die("sqlite error: %s\n", sqlite3_errmsg(db));
+    }
+
+    const char* commit_stmt = "COMMIT";
+    rc = sqlite3_prepare_v2(db, commit_stmt, -1, &statements[STMT_COMMIT], NULL);
+    if (rc != SQLITE_OK) {
+        die("sqlite error: %s\n", sqlite3_errmsg(db));
+    }
+
+    const char* rollback_stmt = "ROLLBACK";
+    rc = sqlite3_prepare_v2(db, rollback_stmt, -1, &statements[STMT_ROLLBACK], NULL);
+    if (rc != SQLITE_OK) {
+        die("sqlite error: %s\n", sqlite3_errmsg(db));
+    }
 }
 
 void db_init(const char* const db_path, bool create_if_not_exists, bool prepare_statements) {
@@ -133,26 +179,7 @@ void db_init(const char* const db_path, bool create_if_not_exists, bool prepare_
     }
 
     if (prepare_statements) {
-        /* prepare statements in advance */
-        const char* insert_stmt =
-            "INSERT OR REPLACE INTO history "
-            "(data, data_size, preview, mime_type, timestamp) "
-            "VALUES (?, ?, ?, ?, ?)";
-        rc = sqlite3_prepare_v2(db, insert_stmt, -1, &statements[STMT_INSERT], NULL);
-        if (rc != SQLITE_OK) {
-            die("sqlite error: %s\n", sqlite3_errmsg(db));
-        }
-
-        const char* delete_oldest_stmt =
-            "DELETE FROM history WHERE rowid IN ("
-            "   SELECT rowid FROM history "
-            "   ORDER BY timestamp DESC "
-            "   LIMIT -1 OFFSET ?"
-            ")";
-        rc = sqlite3_prepare_v2(db, delete_oldest_stmt, -1, &statements[STMT_DELETE_OLDEST], NULL);
-        if (rc != SQLITE_OK) {
-            die("sqlite error: %s\n", sqlite3_errmsg(db));
-        }
+        db_prepare_statements();
     }
 }
 
@@ -166,61 +193,63 @@ void db_cleanup(void) {
 int insert_db_entry(const struct db_entry* const entry, int max_entries_count) {
     int rc = 0;
 
-    // Begin a DB transaction
-    rc = sqlite3_exec(db, "BEGIN TRANSACTION;", NULL, NULL, NULL);
-    debug("Beginning transaction\n");
-    if (rc != SQLITE_OK) {
+    /* transaction */
+    trace("beginning transaction\n");
+    rc = sqlite3_step(statements[STMT_BEGIN]);
+    if (rc != SQLITE_DONE) {
         critical("sqlite error: %s\n", sqlite3_errmsg(db));
         return -1;
     }
+    sqlite3_reset(statements[STMT_BEGIN]);
 
+    /* insert */
     sqlite3_bind_blob(statements[STMT_INSERT], 1, entry->data, entry->data_size, SQLITE_STATIC);
     sqlite3_bind_int64(statements[STMT_INSERT], 2, entry->data_size);
     sqlite3_bind_text(statements[STMT_INSERT], 3, entry->preview, -1, SQLITE_STATIC);
     sqlite3_bind_text(statements[STMT_INSERT], 4, entry->mime_type, -1, SQLITE_STATIC);
     sqlite3_bind_int64(statements[STMT_INSERT], 5, entry->timestamp);
 
-    int db_result = sqlite3_step(statements[STMT_INSERT]);
-    if (db_result != SQLITE_DONE) {
+    rc = sqlite3_step(statements[STMT_INSERT]);
+    if (rc != SQLITE_DONE) {
         critical("sqlite3_step() failed: %s\n", sqlite3_errmsg(db));
-        sqlite3_exec(db, "ROLLBACK;", NULL, NULL, NULL);
-        return -1;
-    } else {
-        debug("Insert succeeded at timestamp\n");
+        goto rollback;
     }
+    debug("record inserted successfully\n");
 
-    rc = sqlite3_reset(statements[STMT_INSERT]);
-    if (rc != SQLITE_OK) {
-        critical("sqlite error: %s\n", sqlite3_errmsg(db));
-        sqlite3_exec(db, "ROLLBACK;", NULL, NULL, NULL);
-        return -1;
-    } else {
-        debug("record inserted successfully\n");
-    }
+    sqlite3_reset(statements[STMT_INSERT]);
     sqlite3_clear_bindings(statements[STMT_INSERT]);
 
+    /* delete oldest entries above the limit */
     if (max_entries_count > 0) {
-        /* bind the limit */
         sqlite3_bind_int(statements[STMT_DELETE_OLDEST], 1, max_entries_count);
 
-        sqlite3_step(statements[STMT_DELETE_OLDEST]);
-
-        sqlite3_clear_bindings(statements[STMT_DELETE_OLDEST]);
-        rc = sqlite3_reset(statements[STMT_DELETE_OLDEST]);
-        if (rc != SQLITE_OK) {
+        rc = sqlite3_step(statements[STMT_DELETE_OLDEST]);
+        if (rc != SQLITE_DONE) {
             critical("sqlite error: %s\n", sqlite3_errmsg(db));
             return -1;
         }
+
+        sqlite3_reset(statements[STMT_DELETE_OLDEST]);
+        sqlite3_clear_bindings(statements[STMT_DELETE_OLDEST]);
     }
 
-    rc = sqlite3_exec(db, "COMMIT;", NULL, NULL, NULL);
-    debug("Ending transaction\n");
-    if (rc != SQLITE_OK) {
+    /* commit transaction */
+    trace("ending transaction\n");
+    rc = sqlite3_step(statements[STMT_COMMIT]);
+    if (rc != SQLITE_DONE) {
         critical("sqlite error: %s\n", sqlite3_errmsg(db));
-        sqlite3_exec(db, "ROLLBACK;", NULL, NULL, NULL);
-        return -1;
+        goto rollback;
     }
+    sqlite3_reset(statements[STMT_COMMIT]);
 
     return 0;
+
+rollback:
+    rc = sqlite3_step(statements[STMT_ROLLBACK]);
+    if (rc != SQLITE_DONE) {
+        critical("sqlite error: %s\n", sqlite3_errmsg(db));
+    }
+    sqlite3_reset(statements[STMT_ROLLBACK]);
+    return -1;
 }
 
