@@ -46,7 +46,8 @@ const char* get_default_db_path(void) {
     } else {
         char* home = getenv("HOME");
         if (home == NULL) {
-            die("both HOME and XDG_DATA_HOME are unset, unable to determine db file path\n");
+            err("both HOME and XDG_DATA_HOME are unset, unable to determine db file path\n");
+            return NULL;
         }
         snprintf(db_path, sizeof(db_path), "%s/.local/share/%s", home, "cclip/db.sqlite3");
     }
@@ -97,7 +98,8 @@ static int db_prepare_statements(void) {
     const char* rollback_stmt = "ROLLBACK";
     rc = sqlite3_prepare_v2(db, rollback_stmt, -1, &statements[STMT_ROLLBACK], NULL);
     if (rc != SQLITE_OK) {
-        die("failed to prepare sqlite statement: %s\n", sqlite3_errmsg(db));
+        err("failed to prepare sqlite statement: %s\n", sqlite3_errmsg(db));
+        return -1;
     }
 
     return 0;
@@ -197,7 +199,7 @@ int insert_db_entry(const struct db_entry* const entry, int max_entries_count) {
     trace("beginning transaction\n");
     rc = sqlite3_step(statements[STMT_BEGIN]);
     if (rc != SQLITE_DONE) {
-        critical("sql: failed to begin transaction: %s\n", sqlite3_errmsg(db));
+        err("sql: failed to begin transaction: %s\n", sqlite3_errmsg(db));
         return -1;
     }
     sqlite3_reset(statements[STMT_BEGIN]);
@@ -211,7 +213,7 @@ int insert_db_entry(const struct db_entry* const entry, int max_entries_count) {
 
     rc = sqlite3_step(statements[STMT_INSERT]);
     if (rc != SQLITE_DONE) {
-        critical("sql: failed to insert entry into db: %s\n", sqlite3_errmsg(db));
+        err("sql: failed to insert entry into db: %s\n", sqlite3_errmsg(db));
         goto rollback;
     }
     debug("record inserted successfully\n");
@@ -225,7 +227,7 @@ int insert_db_entry(const struct db_entry* const entry, int max_entries_count) {
 
         rc = sqlite3_step(statements[STMT_DELETE_OLDEST]);
         if (rc != SQLITE_DONE) {
-            critical("sql: failed to delete oldest entries: %s\n", sqlite3_errmsg(db));
+            err("sql: failed to delete oldest entries: %s\n", sqlite3_errmsg(db));
             return -1;
         }
 
@@ -237,7 +239,7 @@ int insert_db_entry(const struct db_entry* const entry, int max_entries_count) {
     trace("ending transaction\n");
     rc = sqlite3_step(statements[STMT_COMMIT]);
     if (rc != SQLITE_DONE) {
-        critical("sql: failed to commit transaction: %s\n", sqlite3_errmsg(db));
+        err("sql: failed to commit transaction: %s\n", sqlite3_errmsg(db));
         goto rollback;
     }
     sqlite3_reset(statements[STMT_COMMIT]);
@@ -247,7 +249,7 @@ int insert_db_entry(const struct db_entry* const entry, int max_entries_count) {
 rollback:
     rc = sqlite3_step(statements[STMT_ROLLBACK]);
     if (rc != SQLITE_DONE) {
-        critical("sql: failed to rollback transaction: %s\n", sqlite3_errmsg(db));
+        err("sql: failed to rollback transaction: %s\n", sqlite3_errmsg(db));
     }
     sqlite3_reset(statements[STMT_ROLLBACK]);
     return -1;

@@ -88,7 +88,7 @@ static size_t receive_data(int fd, char** buffer) {
     }
 
     if (bytes_read == -1) {
-        die("error reading from pipe: %s\n", strerror(errno));
+        err("error reading from pipe: %s\n", strerror(errno));
     }
 
     close(fd);
@@ -99,6 +99,7 @@ static size_t receive_data(int fd, char** buffer) {
 static void receive_offer(struct zwlr_data_control_offer_v1* offer) {
     char* mime_type = NULL;
     char* buffer = NULL;
+    struct db_entry new_entry = {0};
 
     mime_type = xstrdup(pick_mime_type());
     if (mime_type == NULL) {
@@ -108,7 +109,8 @@ static void receive_offer(struct zwlr_data_control_offer_v1* offer) {
 
     int pipes[2];
     if (pipe(pipes) == -1) {
-        die("failed to create pipe\n");
+        err("failed to create pipe\n");
+        goto out;
     }
 
     trace("receiving offer %p...\n", (void*)offer);
@@ -134,7 +136,6 @@ static void receive_offer(struct zwlr_data_control_offer_v1* offer) {
 
     time_t timestamp = time(NULL);
 
-    struct db_entry new_entry;
     new_entry.data = buffer;
     new_entry.data_size = bytes_read;
     new_entry.mime_type = mime_type;
@@ -142,7 +143,7 @@ static void receive_offer(struct zwlr_data_control_offer_v1* offer) {
     new_entry.preview = generate_preview(buffer, config.preview_len, bytes_read, mime_type);
 
     if (insert_db_entry(&new_entry, config.max_entries_count) < 0) {
-        die("failed to insert entry into database!\n");
+        err("failed to insert entry into database!\n");
     };
 
 out:

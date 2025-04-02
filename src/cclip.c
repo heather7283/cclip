@@ -245,7 +245,7 @@ void print_help_and_exit(int exit_status) {
     exit(exit_status);
 }
 
-void parse_command_line(int argc, char** argv) {
+int parse_command_line(int argc, char** argv) {
     int opt;
 
     while ((opt = getopt(argc, argv, ":d:sVh")) != -1) {
@@ -271,16 +271,23 @@ void parse_command_line(int argc, char** argv) {
             print_help_and_exit(1);
             break;
         default:
-            die("error while parsing command line options\n");
+            err("error while parsing command line options\n");
+            return -1;
         }
     }
+
+    return 0;
 }
 
 
 int main(int argc, char** argv) {
     int exit_status = 0;
 
-    parse_command_line(argc, argv);
+    if (parse_command_line(argc, argv) < 0) {
+        err("error while parsing command line options\n");
+        exit_status = 1;
+        goto cleanup;
+    };
 
     if (db_path == NULL) {
         db_path = get_default_db_path();
@@ -290,7 +297,9 @@ int main(int argc, char** argv) {
     char* errmsg;
 
     if ((retcode = sqlite3_open(db_path, &db)) != SQLITE_OK) {
-        die("sqlite error: %s\n", sqlite3_errstr(retcode));
+        err("sqlite error: %s\n", sqlite3_errstr(retcode));
+        exit_status = 1;
+        goto cleanup;
     }
 
     if (secure_delete) {

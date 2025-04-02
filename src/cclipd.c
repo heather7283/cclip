@@ -64,37 +64,37 @@ void print_help_and_exit(int exit_status) {
     exit(exit_status);
 }
 
-void parse_command_line(int argc, char** argv) {
+int parse_command_line(int argc, char** argv) {
     int opt;
 
     while ((opt = getopt(argc, argv, ":d:t:s:c:P:pevVh")) != -1) {
         switch (opt) {
         case 'd':
-            debug("db file path supplied on command line: %s\n", optarg);
             config.db_path = optarg;
             break;
         case 't':
-            debug("accepted mime type pattern supplied on command line: %s\n", optarg);
-
             config.accepted_mime_types[config.accepted_mime_types_count] = xstrdup(optarg);
             config.accepted_mime_types_count += 1;
             break;
         case 's':
             config.min_data_size = atoi(optarg);
             if (config.min_data_size < 1) {
-                die("MINSIZE must be a positive integer, got %s\n", optarg);
+                err("MINSIZE must be a positive integer, got %s\n", optarg);
+                return -1;
             }
             break;
         case 'c':
             config.max_entries_count = atoi(optarg);
             if (config.max_entries_count < 1) {
-                die("ENTRIES must be a positive integer, got %s\n", optarg);
+                err("ENTRIES must be a positive integer, got %s\n", optarg);
+                return -1;
             }
             break;
         case 'P':
             config.preview_len = atoi(optarg);
             if (config.preview_len < 1) {
-                die("PREVIEW_LEN must be a positive integer, got %s\n", optarg);
+                err("PREVIEW_LEN must be a positive integer, got %s\n", optarg);
+                return -1;
             }
             break;
         case 'p':
@@ -121,9 +121,12 @@ void parse_command_line(int argc, char** argv) {
             print_help_and_exit(1);
             break;
         default:
-            die("error while parsing command line options\n");
+            err("error while parsing command line options\n");
+            return -1;
         }
     }
+
+    return 0;
 }
 
 int main(int argc, char** argv) {
@@ -133,10 +136,20 @@ int main(int argc, char** argv) {
 
     int exit_status = 0;
 
-    parse_command_line(argc, argv);
+    if (parse_command_line(argc, argv) < 0) {
+        err("error while parsing command line options\n");
+        exit_status = 1;
+        goto cleanup;
+    };
+
     if (config.db_path == NULL) {
         config.db_path = get_default_db_path();
     }
+    if (config.db_path == NULL) {
+        exit_status = 1;
+        goto cleanup;
+    }
+
     if (config.accepted_mime_types_count == 0) {
         config.accepted_mime_types[0] = xstrdup("*");
         config.accepted_mime_types_count = 1;
@@ -144,12 +157,14 @@ int main(int argc, char** argv) {
 
     if (db_init(config.db_path, config.create_db_if_not_exists) < 0) {
         critical("failed to init database\n");
+        exit_status = 1;
         goto cleanup;
     };
 
     wayland_fd = wayland_init();
     if (wayland_fd < 0) {
         critical("failed to init wayland stuff\n");
+        exit_status = 1;
         goto cleanup;
     };
 
@@ -161,6 +176,7 @@ int main(int argc, char** argv) {
     sigaddset(&mask, SIGUSR1);
     if (sigprocmask(SIG_BLOCK, &mask, NULL) == -1) {
         critical("failed to block signals: %s\n", strerror(errno));
+        exit_status = 1;
         goto cleanup;
     }
 
@@ -168,6 +184,7 @@ int main(int argc, char** argv) {
     signal_fd = signalfd(-1, &mask, 0);
     if (signal_fd == -1) {
         critical("failed to set up signalfd: %s\n", strerror(errno));
+        exit_status = 1;
         goto cleanup;
     }
 
@@ -175,6 +192,7 @@ int main(int argc, char** argv) {
     epoll_fd = epoll_create1(0);
     if (epoll_fd == -1) {
         critical("failed to set up epoll: %s\n", strerror(errno));
+        exit_status = 1;
         goto cleanup;
     }
 
@@ -184,6 +202,7 @@ int main(int argc, char** argv) {
     epoll_event.data.fd = wayland_fd;
     if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, wayland_fd, &epoll_event) == -1) {
         critical("failed to add wayland fd to epoll list: %s\n", strerror(errno));
+        exit_status = 1;
         goto cleanup;
     }
     /* add signal fd to epoll interest list */
@@ -191,6 +210,7 @@ int main(int argc, char** argv) {
     epoll_event.data.fd = signal_fd;
     if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, signal_fd, &epoll_event) == -1) {
         critical("failed to add signal fd to epoll list: %s\n", strerror(errno));
+        exit_status = 1;
         goto cleanup;
     }
 
@@ -235,8 +255,16 @@ int main(int argc, char** argv) {
                     goto cleanup;
                 case SIGUSR1:
                     info("received SIGUSR1, closing and reopening db connection\n");
-                    db_cleanup();
-                    db_init(config.db_path, config.create_db_if_not_exists);
+                    if (db_cleanup() < 0) {
+                        err("failed to deinit db\n");
+                        exit_status = 1;
+                        goto cleanup;
+                    };
+                    if (db_init(config.db_path, config.create_db_if_not_exists) < 0) {
+                        err("failed to reinit db\n");
+                        exit_status = 1;
+                        goto cleanup;
+                    };
                     break;
                 }
             }
