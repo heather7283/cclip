@@ -188,7 +188,7 @@ int insert_db_entry(const struct db_entry* const entry, int max_entries_count) {
     sqlite3_bind_int64(statements[STMT_INSERT], 5, entry->timestamp);
 
     int db_result = sqlite3_step(statements[STMT_INSERT]);
-    if (db_result != SQLITE_DONE) { 
+    if (db_result != SQLITE_DONE) {
         critical("sqlite3_step() failed: %s\n", sqlite3_errmsg(db));
         sqlite3_exec(db, "ROLLBACK;", NULL, NULL, NULL);
         return -1;
