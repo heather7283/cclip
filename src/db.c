@@ -133,7 +133,7 @@ void db_init(const char* const db_path, bool create_if_not_exists, bool prepare_
     }
 
     const char* db_create_timestamp_index_expr =
-        "CREATE UNIQUE INDEX IF NOT EXISTS idx_history_timestamp ON history(timestamp)";
+        "CREATE INDEX IF NOT EXISTS idx_history_timestamp ON history(timestamp)";
     rc = sqlite3_exec(db, db_create_timestamp_index_expr, NULL, NULL, &errmsg);
     if (rc != SQLITE_OK) {
         die("sqlite error: %s\n", errmsg);
@@ -173,24 +173,38 @@ void db_cleanup(void) {
 int insert_db_entry(const struct db_entry* const entry, int max_entries_count) {
     int rc = 0;
 
-    /* bind parameters */
+    // Begin a DB transaction
+    rc = sqlite3_exec(db, "BEGIN TRANSACTION;", NULL, NULL, NULL);
+    debug("Beginning transaction\n");
+    if (rc != SQLITE_OK) {
+        critical("sqlite error: %s\n", sqlite3_errmsg(db));
+        return -1;
+    }
+
     sqlite3_bind_blob(statements[STMT_INSERT], 1, entry->data, entry->data_size, SQLITE_STATIC);
     sqlite3_bind_int64(statements[STMT_INSERT], 2, entry->data_size);
     sqlite3_bind_text(statements[STMT_INSERT], 3, entry->preview, -1, SQLITE_STATIC);
     sqlite3_bind_text(statements[STMT_INSERT], 4, entry->mime_type, -1, SQLITE_STATIC);
     sqlite3_bind_int64(statements[STMT_INSERT], 5, entry->timestamp);
 
-    /* execute the statement */
-    sqlite3_step(statements[STMT_INSERT]);
+    int db_result = sqlite3_step(statements[STMT_INSERT]);
+    if (db_result != SQLITE_DONE) { 
+        critical("sqlite3_step() failed: %s\n", sqlite3_errmsg(db));
+        sqlite3_exec(db, "ROLLBACK;", NULL, NULL, NULL);
+        return -1;
+    } else {
+        debug("Insert succeeded at timestamp\n");
+    }
 
-    sqlite3_clear_bindings(statements[STMT_INSERT]);
     rc = sqlite3_reset(statements[STMT_INSERT]);
     if (rc != SQLITE_OK) {
         critical("sqlite error: %s\n", sqlite3_errmsg(db));
+        sqlite3_exec(db, "ROLLBACK;", NULL, NULL, NULL);
         return -1;
     } else {
         debug("record inserted successfully\n");
     }
+    sqlite3_clear_bindings(statements[STMT_INSERT]);
 
     if (max_entries_count > 0) {
         /* bind the limit */
@@ -204,6 +218,14 @@ int insert_db_entry(const struct db_entry* const entry, int max_entries_count) {
             critical("sqlite error: %s\n", sqlite3_errmsg(db));
             return -1;
         }
+    }
+
+    rc = sqlite3_exec(db, "COMMIT;", NULL, NULL, NULL);
+    debug("Ending transaction\n");
+    if (rc != SQLITE_OK) {
+        critical("sqlite error: %s\n", sqlite3_errmsg(db));
+        sqlite3_exec(db, "ROLLBACK;", NULL, NULL, NULL);
+        return -1;
     }
 
     return 0;
