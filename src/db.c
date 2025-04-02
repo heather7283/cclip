@@ -69,7 +69,7 @@ static void db_prepare_statements(void) {
         "VALUES (?, ?, ?, ?, ?)";
     rc = sqlite3_prepare_v2(db, insert_stmt, -1, &statements[STMT_INSERT], NULL);
     if (rc != SQLITE_OK) {
-        die("sqlite error: %s\n", sqlite3_errmsg(db));
+        die("failed to prepare sqlite statement: %s\n", sqlite3_errmsg(db));
     }
 
     const char* delete_oldest_stmt =
@@ -80,25 +80,25 @@ static void db_prepare_statements(void) {
         ")";
     rc = sqlite3_prepare_v2(db, delete_oldest_stmt, -1, &statements[STMT_DELETE_OLDEST], NULL);
     if (rc != SQLITE_OK) {
-        die("sqlite error: %s\n", sqlite3_errmsg(db));
+        die("failed to prepare sqlite statement: %s\n", sqlite3_errmsg(db));
     }
 
     const char* begin_stmt = "BEGIN";
     rc = sqlite3_prepare_v2(db, begin_stmt, -1, &statements[STMT_BEGIN], NULL);
     if (rc != SQLITE_OK) {
-        die("sqlite error: %s\n", sqlite3_errmsg(db));
+        die("failed to prepare sqlite statement: %s\n", sqlite3_errmsg(db));
     }
 
     const char* commit_stmt = "COMMIT";
     rc = sqlite3_prepare_v2(db, commit_stmt, -1, &statements[STMT_COMMIT], NULL);
     if (rc != SQLITE_OK) {
-        die("sqlite error: %s\n", sqlite3_errmsg(db));
+        die("failed to prepare sqlite statement: %s\n", sqlite3_errmsg(db));
     }
 
     const char* rollback_stmt = "ROLLBACK";
     rc = sqlite3_prepare_v2(db, rollback_stmt, -1, &statements[STMT_ROLLBACK], NULL);
     if (rc != SQLITE_OK) {
-        die("sqlite error: %s\n", sqlite3_errmsg(db));
+        die("failed to prepare sqlite statement: %s\n", sqlite3_errmsg(db));
     }
 }
 
@@ -145,17 +145,17 @@ void db_init(const char* const db_path, bool create_if_not_exists, bool prepare_
 
     rc = sqlite3_open(db_path, &db);
     if (rc != SQLITE_OK) {
-        die("sqlite error: %s\n", sqlite3_errstr(rc));
+        die("failed to open sqlite database: %s\n", sqlite3_errstr(rc));
     }
 
     /* enable WAL https://sqlite.org/wal.html */
     rc = sqlite3_exec(db, "PRAGMA journal_mode=WAL", NULL, NULL, &errmsg);
     if (rc != SQLITE_OK) {
-        die("sqlite error: %s\n", errmsg);
+        die("sql: PRAGMA journal_mode=WAL failed: %s\n", sqlite3_errstr(rc));
     }
     rc = sqlite3_exec(db, "PRAGMA synchronous=NORMAL", NULL, NULL, &errmsg);
     if (rc != SQLITE_OK) {
-        die("sqlite error: %s\n", errmsg);
+        die("sql: PRAGMA synchronous=NORMAL failed: %s\n", sqlite3_errstr(rc));
     }
 
     const char* db_create_expr =
@@ -168,14 +168,14 @@ void db_init(const char* const db_path, bool create_if_not_exists, bool prepare_
         ")";
     rc = sqlite3_exec(db, db_create_expr, NULL, NULL, &errmsg);
     if (rc != SQLITE_OK) {
-        die("sqlite error: %s\n", errmsg);
+        die("sql: failed to create history table: %s\n", errmsg);
     }
 
     const char* db_create_timestamp_index_expr =
         "CREATE INDEX IF NOT EXISTS idx_history_timestamp ON history(timestamp)";
     rc = sqlite3_exec(db, db_create_timestamp_index_expr, NULL, NULL, &errmsg);
     if (rc != SQLITE_OK) {
-        die("sqlite error: %s\n", errmsg);
+        die("sql: failed to create timestamp index: %s\n", errmsg);
     }
 
     if (prepare_statements) {
@@ -197,7 +197,7 @@ int insert_db_entry(const struct db_entry* const entry, int max_entries_count) {
     trace("beginning transaction\n");
     rc = sqlite3_step(statements[STMT_BEGIN]);
     if (rc != SQLITE_DONE) {
-        critical("sqlite error: %s\n", sqlite3_errmsg(db));
+        critical("sql: failed to begin transaction: %s\n", sqlite3_errmsg(db));
         return -1;
     }
     sqlite3_reset(statements[STMT_BEGIN]);
@@ -211,7 +211,7 @@ int insert_db_entry(const struct db_entry* const entry, int max_entries_count) {
 
     rc = sqlite3_step(statements[STMT_INSERT]);
     if (rc != SQLITE_DONE) {
-        critical("sqlite3_step() failed: %s\n", sqlite3_errmsg(db));
+        critical("sql: failed to insert entry into db: %s\n", sqlite3_errmsg(db));
         goto rollback;
     }
     debug("record inserted successfully\n");
@@ -225,7 +225,7 @@ int insert_db_entry(const struct db_entry* const entry, int max_entries_count) {
 
         rc = sqlite3_step(statements[STMT_DELETE_OLDEST]);
         if (rc != SQLITE_DONE) {
-            critical("sqlite error: %s\n", sqlite3_errmsg(db));
+            critical("sql: failed to delete oldest entries: %s\n", sqlite3_errmsg(db));
             return -1;
         }
 
@@ -237,7 +237,7 @@ int insert_db_entry(const struct db_entry* const entry, int max_entries_count) {
     trace("ending transaction\n");
     rc = sqlite3_step(statements[STMT_COMMIT]);
     if (rc != SQLITE_DONE) {
-        critical("sqlite error: %s\n", sqlite3_errmsg(db));
+        critical("sql: failed to commit transaction: %s\n", sqlite3_errmsg(db));
         goto rollback;
     }
     sqlite3_reset(statements[STMT_COMMIT]);
@@ -247,7 +247,7 @@ int insert_db_entry(const struct db_entry* const entry, int max_entries_count) {
 rollback:
     rc = sqlite3_step(statements[STMT_ROLLBACK]);
     if (rc != SQLITE_DONE) {
-        critical("sqlite error: %s\n", sqlite3_errmsg(db));
+        critical("sql: failed to rollback transaction: %s\n", sqlite3_errmsg(db));
     }
     sqlite3_reset(statements[STMT_ROLLBACK]);
     return -1;
