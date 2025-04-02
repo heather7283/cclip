@@ -125,13 +125,6 @@ void db_init(const char* const db_path, bool create_if_not_exists, bool prepare_
         die("sqlite error: %s\n", errmsg);
     }
 
-    const char* db_create_data_index_expr =
-        "CREATE UNIQUE INDEX IF NOT EXISTS idx_history_data ON history(data)";
-    rc = sqlite3_exec(db, db_create_data_index_expr, NULL, NULL, &errmsg);
-    if (rc != SQLITE_OK) {
-        die("sqlite error: %s\n", errmsg);
-    }
-
     const char* db_create_timestamp_index_expr =
         "CREATE INDEX IF NOT EXISTS idx_history_timestamp ON history(timestamp)";
     rc = sqlite3_exec(db, db_create_timestamp_index_expr, NULL, NULL, &errmsg);
