@@ -28,7 +28,6 @@
 
 #include "db.h"
 #include "common.h"
-#include "xmalloc.h"
 
 enum {
     STMT_INSERT,
@@ -59,7 +58,7 @@ const char* get_default_db_path(void) {
     return db_path;
 }
 
-static void db_prepare_statements(void) {
+static int db_prepare_statements(void) {
     int rc;
 
     /* prepare statements in advance */
@@ -69,7 +68,8 @@ static void db_prepare_statements(void) {
         "VALUES (?, ?, ?, ?, ?)";
     rc = sqlite3_prepare_v2(db, insert_stmt, -1, &statements[STMT_INSERT], NULL);
     if (rc != SQLITE_OK) {
-        die("failed to prepare sqlite statement: %s\n", sqlite3_errmsg(db));
+        err("failed to prepare sqlite statement: %s\n", sqlite3_errmsg(db));
+        return -1;
     }
 
     const char* delete_oldest_stmt =
@@ -80,19 +80,22 @@ static void db_prepare_statements(void) {
         ")";
     rc = sqlite3_prepare_v2(db, delete_oldest_stmt, -1, &statements[STMT_DELETE_OLDEST], NULL);
     if (rc != SQLITE_OK) {
-        die("failed to prepare sqlite statement: %s\n", sqlite3_errmsg(db));
+        err("failed to prepare sqlite statement: %s\n", sqlite3_errmsg(db));
+        return -1;
     }
 
     const char* begin_stmt = "BEGIN";
     rc = sqlite3_prepare_v2(db, begin_stmt, -1, &statements[STMT_BEGIN], NULL);
     if (rc != SQLITE_OK) {
-        die("failed to prepare sqlite statement: %s\n", sqlite3_errmsg(db));
+        err("failed to prepare sqlite statement: %s\n", sqlite3_errmsg(db));
+        return -1;
     }
 
     const char* commit_stmt = "COMMIT";
     rc = sqlite3_prepare_v2(db, commit_stmt, -1, &statements[STMT_COMMIT], NULL);
     if (rc != SQLITE_OK) {
-        die("failed to prepare sqlite statement: %s\n", sqlite3_errmsg(db));
+        err("failed to prepare sqlite statement: %s\n", sqlite3_errmsg(db));
+        return -1;
     }
 
     const char* rollback_stmt = "ROLLBACK";
@@ -100,18 +103,19 @@ static void db_prepare_statements(void) {
     if (rc != SQLITE_OK) {
         die("failed to prepare sqlite statement: %s\n", sqlite3_errmsg(db));
     }
+
+    return 0;
 }
 
-void db_init(const char* const db_path, bool create_if_not_exists) {
-    char* errmsg = NULL;
+int db_init(const char* const db_path, bool create_if_not_exists) {
     int rc = 0;
 
     if (access(db_path, F_OK) == -1) {
         if (!create_if_not_exists) {
-            die("database file %s does not exist\n", db_path);
+            err("database file %s does not exist\n", db_path);
+            return -1;
         } else {
-            info("database file %s does not exist, "
-                 "attempting to create\n", db_path);
+            info("database file %s does not exist, attempting to create\n", db_path);
         }
 
         pid_t child_pid = fork();
@@ -130,19 +134,23 @@ void db_init(const char* const db_path, bool create_if_not_exists) {
         }
     }
 
+    debug("opening database at %s\n", db_path);
     rc = sqlite3_open(db_path, &db);
     if (rc != SQLITE_OK) {
-        die("failed to open sqlite database: %s\n", sqlite3_errstr(rc));
+        err("failed to open sqlite database: %s\n", sqlite3_errstr(rc));
+        return -1;
     }
 
     /* enable WAL https://sqlite.org/wal.html */
-    rc = sqlite3_exec(db, "PRAGMA journal_mode=WAL", NULL, NULL, &errmsg);
+    rc = sqlite3_exec(db, "PRAGMA journal_mode=WAL", NULL, NULL, NULL);
     if (rc != SQLITE_OK) {
-        die("sql: PRAGMA journal_mode=WAL failed: %s\n", sqlite3_errstr(rc));
+        err("sql: PRAGMA journal_mode=WAL failed: %s\n", sqlite3_errstr(rc));
+        return -1;
     }
-    rc = sqlite3_exec(db, "PRAGMA synchronous=NORMAL", NULL, NULL, &errmsg);
+    rc = sqlite3_exec(db, "PRAGMA synchronous=NORMAL", NULL, NULL, NULL);
     if (rc != SQLITE_OK) {
-        die("sql: PRAGMA synchronous=NORMAL failed: %s\n", sqlite3_errstr(rc));
+        err("sql: PRAGMA synchronous=NORMAL failed: %s\n", sqlite3_errstr(rc));
+        return -1;
     }
 
     const char* db_create_expr =
@@ -153,28 +161,37 @@ void db_init(const char* const db_path, bool create_if_not_exists) {
         "    mime_type TEXT    NOT NULL,"
         "    timestamp INTEGER NOT NULL"
         ")";
-    rc = sqlite3_exec(db, db_create_expr, NULL, NULL, &errmsg);
+    rc = sqlite3_exec(db, db_create_expr, NULL, NULL, NULL);
     if (rc != SQLITE_OK) {
-        die("sql: failed to create history table: %s\n", errmsg);
+        err("sql: failed to create history table: %s\n", sqlite3_errstr(rc));
+        return -1;
     }
 
     const char* db_create_timestamp_index_expr =
         "CREATE INDEX IF NOT EXISTS idx_history_timestamp ON history(timestamp)";
-    rc = sqlite3_exec(db, db_create_timestamp_index_expr, NULL, NULL, &errmsg);
+    rc = sqlite3_exec(db, db_create_timestamp_index_expr, NULL, NULL, NULL);
     if (rc != SQLITE_OK) {
-        die("sql: failed to create timestamp index: %s\n", errmsg);
+        err("sql: failed to create timestamp index: %s\n", sqlite3_errstr(rc));
+        return -1;
     }
 
-    db_prepare_statements();
+    return db_prepare_statements();
 }
 
-void db_cleanup(void) {
+int db_cleanup(void) {
     for (int i = 0; i < STMT_END; i++) {
         sqlite3_finalize(statements[i]);
         statements[i] = NULL;
     }
-    sqlite3_close_v2(db);
+
+    int rc = sqlite3_close(db);
+    if (rc != SQLITE_OK) {
+        err("failed to close database connection: %s\n", sqlite3_errstr(rc));
+        return -1;
+    }
     db = NULL;
+
+    return 0;
 }
 
 int insert_db_entry(const struct db_entry* const entry, int max_entries_count) {

@@ -20,20 +20,7 @@
 
 #include <stdbool.h>
 
-struct wayland {
-    int fd;
-    struct wl_display* display;
-    struct wl_seat* seat;
-    struct wl_registry* registry;
-    struct zwlr_data_control_manager_v1* data_control_manager;
-    struct zwlr_data_control_device_v1* data_control_device;
-
-    bool seat_found;
-};
-
-extern struct wayland wayland;
-
-void wayland_init(void);
+int wayland_init(void);
 void wayland_cleanup(void);
 int wayland_process_events(void);
 

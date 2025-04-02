@@ -134,6 +134,7 @@ void parse_command_line(int argc, char** argv) {
 int main(int argc, char** argv) {
     int epoll_fd = -1;
     int signal_fd = -1;
+    int wayland_fd = -1;
 
     int exit_status = 0;
 
@@ -146,10 +147,16 @@ int main(int argc, char** argv) {
         config.accepted_mime_types_count = 1;
     }
 
-    debug("opening database at %s\n", config.db_path);
-    db_init(config.db_path, config.create_db_if_not_exists);
+    if (db_init(config.db_path, config.create_db_if_not_exists) < 0) {
+        critical("failed to init database\n");
+        goto cleanup;
+    };
 
-    wayland_init();
+    wayland_fd = wayland_init();
+    if (wayland_fd < 0) {
+        critical("failed to init wayland stuff\n");
+        goto cleanup;
+    };
 
     /* block signals so we can catch them later */
     sigset_t mask;
@@ -179,8 +186,8 @@ int main(int argc, char** argv) {
     struct epoll_event epoll_event;
     /* add wayland fd to epoll interest list */
     epoll_event.events = EPOLLIN;
-    epoll_event.data.fd = wayland.fd;
-    if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, wayland.fd, &epoll_event) == -1) {
+    epoll_event.data.fd = wayland_fd;
+    if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, wayland_fd, &epoll_event) == -1) {
         critical("failed to add wayland fd to epoll list: %s\n", strerror(errno));
         goto cleanup;
     }
@@ -208,7 +215,7 @@ int main(int argc, char** argv) {
 
         /* handle events */
         for (int n = 0; n < number_fds; n++) {
-            if (events[n].data.fd == wayland.fd) {
+            if (events[n].data.fd == wayland_fd) {
                 /* wayland events */
                 if (wayland_process_events() < 0) {
                     critical("failed to process wayland events\n");

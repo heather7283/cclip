@@ -30,7 +30,16 @@
 #include "common.h"
 #include "xmalloc.h"
 
-struct wayland wayland = {0};
+struct {
+    int fd;
+    struct wl_display* display;
+    struct wl_seat* seat;
+    struct wl_registry* registry;
+    struct zwlr_data_control_manager_v1* data_control_manager;
+    struct zwlr_data_control_device_v1* data_control_device;
+
+    bool seat_found;
+} wayland = {0};
 
 /* surely nobody will offer more than 32 mime types */
 #define MAX_OFFERED_MIME_TYPES 32
@@ -222,18 +231,19 @@ static const struct wl_registry_listener registry_listener = {
     .global_remove = registry_global_remove,
 };
 
-/* boilerplate code to initialise some required wayland stuff */
-void wayland_init(void) {
+int wayland_init(void) {
     wayland.display = wl_display_connect(NULL);
     if (wayland.display == NULL) {
-        die("failed to connect to display\n");
+        err("failed to connect to display\n");
+        return -1;
     }
 
     wayland.fd = wl_display_get_fd(wayland.display);
 
     wayland.registry = wl_display_get_registry(wayland.display);
     if (wayland.registry == NULL) {
-        die("failed to get registry\n");
+        err("failed to get registry\n");
+        return -1;
     }
 
     wl_registry_add_listener(wayland.registry, &registry_listener, NULL);
@@ -241,17 +251,20 @@ void wayland_init(void) {
     wl_display_roundtrip(wayland.display);
 
     if (wayland.seat == NULL) {
-        die("failed to bind to seat interface\n");
+        err("failed to bind to seat interface\n");
+        return -1;
     }
 
     if (wayland.data_control_manager == NULL) {
-        die("failed to bind to data_control_manager interface\n");
+        err("failed to bind to data_control_manager interface\n");
+        return -1;
     }
 
     wayland.data_control_device =
         zwlr_data_control_manager_v1_get_data_device(wayland.data_control_manager, wayland.seat);
     if (wayland.data_control_device == NULL) {
-        die("data device is null\n");
+        err("data device is null\n");
+        return -1;
     }
 
     zwlr_data_control_device_v1_add_listener(wayland.data_control_device,
@@ -259,6 +272,8 @@ void wayland_init(void) {
                                              NULL);
 
     wl_display_roundtrip(wayland.display);
+
+    return wayland.fd;
 }
 
 void wayland_cleanup(void) {
