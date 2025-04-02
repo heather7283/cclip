@@ -114,17 +114,13 @@ void db_init(const char* const db_path, bool create_if_not_exists) {
                  "attempting to create\n", db_path);
         }
 
-        char* db_path_dup = xstrdup(db_path);
-        char* db_dir = dirname(db_path_dup);
-
-        char* mkdir_cmd[] = {"mkdir", "-p", db_dir, NULL};
         pid_t child_pid = fork();
         if (child_pid == -1) {
             warn("forking child failed: %s\n", strerror(errno));
         } else if (child_pid == 0) {
             /* child */
-            execvp(mkdir_cmd[0], mkdir_cmd);
-            warn("execing into mkdir -p failed: %s\n", strerror(errno));
+            execlp("install", "install", "-Dm644", "/dev/null", db_path, NULL);
+            warn("execing install -Dm644 /dev/null %s failed: %s\n", db_path, strerror(errno));
             exit(1);
         } else {
             /* parent */
@@ -132,14 +128,6 @@ void db_init(const char* const db_path, bool create_if_not_exists) {
                 warn("failed to wait for child: %s\n", strerror(errno));
             };
         }
-
-        free(db_path_dup);
-
-        FILE* db_file = fopen(db_path, "w+");
-        if (db_file == NULL) {
-            die("unable to create database file: %s\n", strerror(errno));
-        }
-        fclose(db_file);
     }
 
     rc = sqlite3_open(db_path, &db);
