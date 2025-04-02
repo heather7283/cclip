@@ -101,7 +101,7 @@ size_t receive_data(struct zwlr_data_control_offer_v1* offer, char** buffer, cha
     close(pipes[1]);
 
     /* is it really a good idea to multiply buffer size by 2 every time? */
-    const size_t INITIAL_BUFFER_SIZE = 1024;
+    const size_t INITIAL_BUFFER_SIZE = 4096;
     const int GROWTH_FACTOR = 2;
 
     *buffer = xmalloc(INITIAL_BUFFER_SIZE);
