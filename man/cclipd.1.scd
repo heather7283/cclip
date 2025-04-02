@@ -116,30 +116,6 @@ This can become an issue if you store sensitive data in clipboard.
 One can delete sensitive data from database using *delete* or *wipe*
 actions provided by *cclip*(1) with *-s* option.
 
-# KNOWN BUGS
-
-When copying things into clipboard in rapid succession, *cclipd*
-might fail to save all of them into database. Can be reproduced
-with something like this:
-
-
-```
-cclipd -v -d /tmp/testdb
-```
-
-then, in another terminal:
-
-
-```
-for i in $(seq 10); do echo "test ${i}" | wl-copy; done
-cclip -d /tmp/testdb list
-```
-
-You will notice that only 3-4 entries end up in database.
-I am unsure what causes it, and judging by *cclipd* logs
-it seems that all offers are read successfully, but data gets lost
-somewhere on database insertion step.
-
 # REPORTING BUGS
 
 Please report bugs to https://github.com/heather7283/cclip/issues.
