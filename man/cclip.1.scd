@@ -69,7 +69,7 @@ Interactive picker using *fzf*(1):
 ```
 #!/bin/sh
 
-set -- $(cclip list | fzf --with-nth 3 -d "$(printf '\t')")
+set -- $(cclip list | fzf --with-nth 3 -d "$(printf '\\t')")
 id="$1"
 mime="$2"
 [ -n "$id" ] && cclip get "$id" | wl-copy --type "$mime";
@@ -78,7 +78,7 @@ mime="$2"
 Example above can be simplifed if you let *wl-copy*(1) figure out MIME type:
 
 ```
-cclip list | fzf --with-nth 3 -d "$(printf '\t')" | awk '{print $1}' | cclip get | wl-copy
+cclip list | fzf --with-nth 3 -d "$(printf '\\t')" | awk '{print $1}' | cclip get | wl-copy
 ```
 
 # EXIT STATUS
