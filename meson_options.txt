@@ -1,4 +1,2 @@
-option('man', type: 'boolean', value: true,
-       description: 'Build and install man pages')
-option('static', type: 'boolean', value: false,
-       description: 'Static link binaries')
+option('man', type: 'boolean', value: true, description: 'Build and install man pages')
+option('static', type: 'boolean', value: false, description: 'Static link binaries')

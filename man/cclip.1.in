@@ -1,0 +1,109 @@
+.TH cclip 1 "2025-04-20" "@VERSION@" "User Commands"
+.SH NAME
+cclip \- command line interface for cclip database.
+.SH SYNOPSIS
+.B cclip
+.RI [ OPTIONS... ]
+.I ACTION
+.I ACTION_ARG
+.SH DESCRIPTION
+Interact with a
+.BR cclipd (1)
+database.
+.SH OPTIONS
+.TP 4
+.BI \-d " DB_PATH"
+Path to database file. Database will NOT be created if it doesn't exist.
+.br
+Default is $XDG_DATA_HOME/cclip/db.sqlite3,
+where XDG_DATA_HOME defaults to $HOME/.local/share if it is unset.
+.TP 4
+.B \-s
+Enables secure_delete option. Deleted content with be overwritten with zeroes.
+.TP 4
+.B \-h
+Print help message and exit 0.
+.TP 4
+.B \-V
+Print version and exit 0.
+.SH ACTIONS
+You must specify exactly one of the following actions:
+.TP 4
+.B list \fP[\fIFIELDS\fP]
+Prints information about all database entries to stdout. \
+Fields are separated with tabs, entries are separated with newlines.
+.br
+Output format can be controlled by specifying list of comma-separated fields.
+.br
+Available fields: rowid, preview, mime_type, data_size, timestamp.
+.br
+Default: rowid,mime_type,preview.
+.TP 4
+.B get \fP[\fIID\fP]
+Print saved clipboard entry with specified id to stdout. \
+If id is not specified, read it from stdin.
+.TP 4
+.B delete \fP[\fIID\fP]
+Delete entry with specified id from database. \
+If id is not specified, read it from stdin.
+.TP 4
+.B wipe
+Remove \fBall\fP entries from database.
+.TP 4
+.B vacuum
+Rebuilds the database file, repacking it into a minimal amount of space.
+.SH EXAMPLES
+Get most recently saved PNG image and display it with
+.BR chafa (1)
+.PP
+.RS 4
+.EX
+.\" SRC BEGIN (cclip_png_chafa.sh)
+cclip list id,mime | awk '$2 == "image/png" {print $1; exit}' | cclip get | chafa
+.\" SRC END
+.EE
+.RE
+.PP
+Interactive picker using
+.BR fzf (1)
+.PP
+.RS 4
+.EX
+.\" SRC BEGIN (cclip_fzf_picker.sh)
+#!/bin/sh
+
+set -- $(cclip list | fzf --with-nth 3..)
+id="$1"
+mime="$2"
+[ -n "$id" ] && cclip get "$id" | wl-copy --type "$mime"
+.\" SRC END
+.EE
+.RE
+.PP
+Example above can be simplifed if you let
+.BR wl-copy (1)
+figure out MIME type
+.PP
+.RS 4
+.EX
+.\" SRC BEGIN (cclip_fzf_picker_simple.sh)
+cclip list | fzf --with-nth 3.. --accept-nth 1 | cclip get | wl-copy
+.\" SRC END
+.EE
+.RE
+.SH BUGS
+Please report bugs to https://github.com/heather7283/cclip/issues.
+.PP
+When reporting bugs:
+.PP
+.PD 0
+.IP \(bu 4
+Provide backtrace with symbols if you experience a crash.
+.IP \(bu 4
+Describe steps necessary to reproduce the issue.
+.PD
+.SH SEE ALSO
+.BR cclipd (1),
+.BR wl-clipboard (1),
+.BR fzf (1),
+.BR rofi (1)
