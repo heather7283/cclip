@@ -54,9 +54,10 @@ client_header = custom_target('client_header',
     command: [ wayland_scanner, 'client-header', '@INPUT@', '@OUTPUT@' ]
 )
 
+xxhash_lib = static_library('xxhash', 'thirdparty/xxhash/xxhash.c')
+
 executable('cclip',
     'src/cclip.c',
-    'src/db.c',
     'src/xmalloc.c',
     dependencies: [ sqlite3_dep ],
     install: true
@@ -71,6 +72,8 @@ executable('cclipd',
     'src/xmalloc.c',
     private_code,
     client_header,
+    include_directories: [ 'thirdparty/xxhash' ],
+    link_with: [ xxhash_lib ],
     dependencies: [ sqlite3_dep, wayland_client_dep ],
     install: true
 )

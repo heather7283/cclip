@@ -24,6 +24,7 @@
 
 #include "db.h"
 #include "common.h"
+#include "xxhash.h"
 
 enum {
     STMT_INSERT,
@@ -35,50 +36,69 @@ enum {
 };
 static sqlite3_stmt* statements[STMT_END] = {0};
 
+enum {
+    DATA_LOCATION      = 1,
+    DATA_HASH_LOCATION = 2,
+    DATA_SIZE_LOCATION = 3,
+    PREVIEW_LOCATION   = 4,
+    MIME_TYPE_LOCATION = 5,
+    TIMESTAMP_LOCATION = 6,
+};
+static const char insert_stmt[] =
+    "INSERT OR REPLACE INTO history "
+    "(data, data_hash, data_size, preview, mime_type, timestamp) "
+    "VALUES (?, ?, ?, ?, ?, ?)";
+
+static const char delete_oldest_stmt[] =
+    "DELETE FROM history WHERE rowid IN ( "
+       "SELECT rowid FROM history "
+       "ORDER BY timestamp DESC "
+       "LIMIT -1 OFFSET ? "
+    ")";
+
+static const char db_create_stmt[] =
+    "CREATE TABLE IF NOT EXISTS history ( "
+        "data      BLOB    NOT NULL, "
+        "data_hash INTEGER NOT NULL UNIQUE, "
+        "data_size INTEGER NOT NULL, "
+        "preview   TEXT    NOT NULL, "
+        "mime_type TEXT    NOT NULL, "
+        "timestamp INTEGER NOT NULL "
+    ")";
+
+static const char db_create_timestamp_index_stmt[] =
+    "CREATE INDEX IF NOT EXISTS idx_history_timestamp ON history(timestamp)";
+
 static struct sqlite3* db = NULL;
 
 static int db_prepare_statements(void) {
     int rc;
 
-    /* prepare statements in advance */
-    const char* insert_stmt =
-        "INSERT OR REPLACE INTO history "
-        "(data, data_size, preview, mime_type, timestamp) "
-        "VALUES (?, ?, ?, ?, ?)";
     rc = sqlite3_prepare_v2(db, insert_stmt, -1, &statements[STMT_INSERT], NULL);
     if (rc != SQLITE_OK) {
         err("failed to prepare sqlite statement: %s\n", sqlite3_errmsg(db));
         return -1;
     }
 
-    const char* delete_oldest_stmt =
-        "DELETE FROM history WHERE rowid IN ("
-        "   SELECT rowid FROM history "
-        "   ORDER BY timestamp DESC "
-        "   LIMIT -1 OFFSET ?"
-        ")";
     rc = sqlite3_prepare_v2(db, delete_oldest_stmt, -1, &statements[STMT_DELETE_OLDEST], NULL);
     if (rc != SQLITE_OK) {
         err("failed to prepare sqlite statement: %s\n", sqlite3_errmsg(db));
         return -1;
     }
 
-    const char* begin_stmt = "BEGIN";
-    rc = sqlite3_prepare_v2(db, begin_stmt, -1, &statements[STMT_BEGIN], NULL);
+    rc = sqlite3_prepare_v2(db, "BEGIN", -1, &statements[STMT_BEGIN], NULL);
     if (rc != SQLITE_OK) {
         err("failed to prepare sqlite statement: %s\n", sqlite3_errmsg(db));
         return -1;
     }
 
-    const char* commit_stmt = "COMMIT";
-    rc = sqlite3_prepare_v2(db, commit_stmt, -1, &statements[STMT_COMMIT], NULL);
+    rc = sqlite3_prepare_v2(db, "COMMIT", -1, &statements[STMT_COMMIT], NULL);
     if (rc != SQLITE_OK) {
         err("failed to prepare sqlite statement: %s\n", sqlite3_errmsg(db));
         return -1;
     }
 
-    const char* rollback_stmt = "ROLLBACK";
-    rc = sqlite3_prepare_v2(db, rollback_stmt, -1, &statements[STMT_ROLLBACK], NULL);
+    rc = sqlite3_prepare_v2(db, "ROLLBACK", -1, &statements[STMT_ROLLBACK], NULL);
     if (rc != SQLITE_OK) {
         err("failed to prepare sqlite statement: %s\n", sqlite3_errmsg(db));
         return -1;
@@ -133,23 +153,13 @@ int db_init(const char* const db_path, bool create_if_not_exists) {
         return -1;
     }
 
-    const char* db_create_expr =
-        "CREATE TABLE IF NOT EXISTS history ("
-        "    data      BLOB    NOT NULL UNIQUE,"
-        "    data_size INTEGER NOT NULL,"
-        "    preview   TEXT    NOT NULL,"
-        "    mime_type TEXT    NOT NULL,"
-        "    timestamp INTEGER NOT NULL"
-        ")";
-    rc = sqlite3_exec(db, db_create_expr, NULL, NULL, NULL);
+    rc = sqlite3_exec(db, db_create_stmt, NULL, NULL, NULL);
     if (rc != SQLITE_OK) {
         err("sql: failed to create history table: %s\n", sqlite3_errstr(rc));
         return -1;
     }
 
-    const char* db_create_timestamp_index_expr =
-        "CREATE INDEX IF NOT EXISTS idx_history_timestamp ON history(timestamp)";
-    rc = sqlite3_exec(db, db_create_timestamp_index_expr, NULL, NULL, NULL);
+    rc = sqlite3_exec(db, db_create_timestamp_index_stmt, NULL, NULL, NULL);
     if (rc != SQLITE_OK) {
         err("sql: failed to create timestamp index: %s\n", sqlite3_errstr(rc));
         return -1;
@@ -177,6 +187,9 @@ int db_cleanup(void) {
 int insert_db_entry(const struct db_entry* const entry, int max_entries_count) {
     int rc = 0;
 
+    uint64_t data_hash = XXH3_64bits(entry->data, entry->data_size);
+    trace("entry hash: %016lX\n", data_hash);
+
     /* transaction */
     trace("beginning transaction\n");
     rc = sqlite3_step(statements[STMT_BEGIN]);
@@ -187,11 +200,15 @@ int insert_db_entry(const struct db_entry* const entry, int max_entries_count) {
     sqlite3_reset(statements[STMT_BEGIN]);
 
     /* insert */
-    sqlite3_bind_blob(statements[STMT_INSERT], 1, entry->data, entry->data_size, SQLITE_STATIC);
-    sqlite3_bind_int64(statements[STMT_INSERT], 2, entry->data_size);
-    sqlite3_bind_text(statements[STMT_INSERT], 3, entry->preview, -1, SQLITE_STATIC);
-    sqlite3_bind_text(statements[STMT_INSERT], 4, entry->mime_type, -1, SQLITE_STATIC);
-    sqlite3_bind_int64(statements[STMT_INSERT], 5, entry->timestamp);
+    sqlite3_bind_blob(statements[STMT_INSERT], DATA_LOCATION,
+                      entry->data, entry->data_size, SQLITE_STATIC);
+    sqlite3_bind_int64(statements[STMT_INSERT], DATA_HASH_LOCATION, *(int64_t *)&data_hash);
+    sqlite3_bind_int64(statements[STMT_INSERT], DATA_SIZE_LOCATION, entry->data_size);
+    sqlite3_bind_text(statements[STMT_INSERT], PREVIEW_LOCATION,
+                      entry->preview, -1, SQLITE_STATIC);
+    sqlite3_bind_text(statements[STMT_INSERT], MIME_TYPE_LOCATION,
+                      entry->mime_type, -1, SQLITE_STATIC);
+    sqlite3_bind_int64(statements[STMT_INSERT], TIMESTAMP_LOCATION, entry->timestamp);
 
     rc = sqlite3_step(statements[STMT_INSERT]);
     if (rc != SQLITE_DONE) {
