@@ -15,7 +15,11 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+#include <stdlib.h>
+#include <limits.h>
+
 #include "config.h"
+#include "common.h"
 
 struct config config = {
     .accepted_mime_types_count = 0,
@@ -27,4 +31,22 @@ struct config config = {
     .create_db_if_not_exists = true,
     .preview_len = 128,
 };
+
+const char* get_default_db_path(void) {
+    static char db_path[PATH_MAX];
+
+    char* xdg_data_home = getenv("XDG_DATA_HOME");
+    char* home = getenv("HOME");
+
+    if (xdg_data_home != NULL) {
+        snprintf(db_path, sizeof(db_path), "%s/cclip/db.sqlite3", xdg_data_home);
+    } else if (home != NULL) {
+        snprintf(db_path, sizeof(db_path), "%s/.local/share/cclip/db.sqlite3", home);
+    } else {
+        err("both HOME and XDG_DATA_HOME are unset, unable to determine db file path\n");
+        return NULL;
+    }
+
+    return db_path;
+}
 

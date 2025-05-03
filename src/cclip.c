@@ -22,9 +22,9 @@
 #include <stdbool.h>
 #include <unistd.h>
 #include <inttypes.h>
+#include <limits.h>
 
 #include "common.h"
-#include "db.h"
 #include "xmalloc.h"
 
 unsigned int DEBUG_LEVEL = 0;
@@ -33,6 +33,24 @@ const char* db_path = NULL;
 bool secure_delete = false;
 
 struct sqlite3* db = NULL;
+
+const char* get_default_db_path(void) {
+    static char db_path[PATH_MAX];
+
+    char* xdg_data_home = getenv("XDG_DATA_HOME");
+    char* home = getenv("HOME");
+
+    if (xdg_data_home != NULL) {
+        snprintf(db_path, sizeof(db_path), "%s/cclip/db.sqlite3", xdg_data_home);
+    } else if (home != NULL) {
+        snprintf(db_path, sizeof(db_path), "%s/.local/share/cclip/db.sqlite3", home);
+    } else {
+        err("both HOME and XDG_DATA_HOME are unset, unable to determine db file path\n");
+        return NULL;
+    }
+
+    return db_path;
+}
 
 int print_row(void* data, int argc, char** argv, char** column_names) {
     for (int i = 0; i < argc - 1; i++) {

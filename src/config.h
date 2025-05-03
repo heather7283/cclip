@@ -35,5 +35,7 @@ struct config {
 
 extern struct config config;
 
+const char* get_default_db_path(void);
+
 #endif /* #ifndef CONFIG_H */
 

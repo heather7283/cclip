@@ -37,24 +37,6 @@ static sqlite3_stmt* statements[STMT_END] = {0};
 
 static struct sqlite3* db = NULL;
 
-const char* get_default_db_path(void) {
-    static char db_path[PATH_MAX];
-
-    char* xdg_data_home = getenv("XDG_DATA_HOME");
-    if (xdg_data_home != NULL) {
-        snprintf(db_path, sizeof(db_path), "%s/%s", xdg_data_home, "cclip/db.sqlite3");
-    } else {
-        char* home = getenv("HOME");
-        if (home == NULL) {
-            err("both HOME and XDG_DATA_HOME are unset, unable to determine db file path\n");
-            return NULL;
-        }
-        snprintf(db_path, sizeof(db_path), "%s/.local/share/%s", home, "cclip/db.sqlite3");
-    }
-
-    return db_path;
-}
-
 static int db_prepare_statements(void) {
     int rc;
 
