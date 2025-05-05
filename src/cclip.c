@@ -368,17 +368,17 @@ int main(int argc, char** argv) {
         exit_status = 1;
         goto cleanup;
     }
-    char* action = argv[optind];
+    char* action = argv[optind++];
 
     if (strcmp(action, "list") == 0) {
         char* output_format = NULL;
-        if (argv[optind + 1] != NULL) {
-            output_format = argv[optind + 1];
+        if (argv[optind] != NULL) {
+            output_format = argv[optind];
         }
         exit_status = action_list(output_format);
     } else if (strcmp(action, "get") == 0) {
         int64_t id = -1;
-        if (!get_id(argv[optind + 1], &id)) {
+        if (!get_id(argv[optind], &id)) {
             critical("failed to get id\n");
             exit_status = 1;
             goto cleanup;
@@ -386,7 +386,7 @@ int main(int argc, char** argv) {
         exit_status = action_get(id);
     } else if (strcmp(action, "delete") == 0) {
         int64_t id = -1;
-        if (!get_id(argv[optind + 1], &id)) {
+        if (!get_id(argv[optind], &id)) {
             critical("failed to get id\n");
             exit_status = 1;
             goto cleanup;
