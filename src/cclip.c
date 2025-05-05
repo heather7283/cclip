@@ -94,7 +94,7 @@ int print_row(void* data, int argc, char** argv, char** column_names) {
     return 0;
 }
 
-int list(char* fields) {
+int action_list(char* fields) {
     /* IMPORTANT: EDIT THIS IF YOU EVER ADD MORE THAN 3 ALIASES */
     static const char* allowed_fields[][4] = {
         {     "rowid",    "id",         NULL },
@@ -169,7 +169,7 @@ int list(char* fields) {
     return 0;
 }
 
-int get(int64_t id) {
+int action_get(int64_t id) {
     sqlite3_stmt* stmt;
     int retcode;
 
@@ -202,7 +202,7 @@ int get(int64_t id) {
     return 0;
 }
 
-int delete(int64_t id) {
+int action_delete(int64_t id) {
     sqlite3_stmt* stmt;
     int retcode;
 
@@ -231,7 +231,7 @@ int delete(int64_t id) {
     return 0;
 }
 
-int wipe(void) {
+int action_wipe(void) {
     sqlite3_stmt* stmt;
     int retcode;
 
@@ -254,7 +254,7 @@ int wipe(void) {
     return 0;
 }
 
-int vacuum(void) {
+int action_vacuum(void) {
     int retcode;
     char* errmsg;
 
@@ -375,7 +375,7 @@ int main(int argc, char** argv) {
         if (argv[optind + 1] != NULL) {
             output_format = argv[optind + 1];
         }
-        exit_status = list(output_format);
+        exit_status = action_list(output_format);
     } else if (strcmp(action, "get") == 0) {
         int64_t id = -1;
         if (!get_id(argv[optind + 1], &id)) {
@@ -383,7 +383,7 @@ int main(int argc, char** argv) {
             exit_status = 1;
             goto cleanup;
         }
-        exit_status = get(id);
+        exit_status = action_get(id);
     } else if (strcmp(action, "delete") == 0) {
         int64_t id = -1;
         if (!get_id(argv[optind + 1], &id)) {
@@ -391,11 +391,11 @@ int main(int argc, char** argv) {
             exit_status = 1;
             goto cleanup;
         }
-        exit_status = delete(id);
+        exit_status = action_delete(id);
     } else if (strcmp(action, "wipe") == 0) {
-        exit_status = wipe();
+        exit_status = action_wipe();
     } else if (strcmp(action, "vacuum") == 0) {
-        exit_status = vacuum();
+        exit_status = action_vacuum();
     } else {
         critical("invalid action: %s\n", action);
         exit_status = 1;
