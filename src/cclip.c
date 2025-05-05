@@ -23,6 +23,7 @@
 #include <unistd.h>
 #include <inttypes.h>
 #include <limits.h>
+#include <errno.h>
 
 #include "common.h"
 #include "xmalloc.h"
@@ -33,6 +34,39 @@ const char* db_path = NULL;
 bool secure_delete = false;
 
 struct sqlite3* db = NULL;
+
+bool str_to_int64(const char* str, int64_t* res) {
+    char *endptr = NULL;
+
+    errno = 0;
+    int64_t res_tmp = strtoll(str, &endptr, 10);
+
+    if (errno == 0 && *endptr == '\0') {
+        *res = res_tmp;
+        return true;
+    }
+    err("failed to convert %s to int64\n", str);
+    return false;
+}
+
+bool int64_from_stdin(int64_t* res) {
+    int64_t res_tmp;
+    if (scanf("%ld", &res_tmp) != 1) {
+        err("failed to read a number from stdin\n");
+        return false;
+    };
+    *res = res_tmp;
+    return true;
+}
+
+/* if str is null, tries to read stdin */
+bool get_id(const char* str, int64_t* res) {
+    if (str == NULL) {
+        return int64_from_stdin(res);
+    } else {
+        return str_to_int64(str, res);
+    }
+}
 
 const char* get_default_db_path(void) {
     static char db_path[PATH_MAX];
@@ -156,7 +190,7 @@ int get(int64_t id) {
 
         fwrite(data, 1, data_size, stdout);
     } else if (retcode == SQLITE_DONE) {
-        critical("no entry found with specified id\n");
+        critical("no entry found with id %li\n", id);
         return 1;
     } else {
         critical("sqlite error: %s\n", sqlite3_errmsg(db));
@@ -344,34 +378,16 @@ int main(int argc, char** argv) {
         exit_status = list(output_format);
     } else if (strcmp(action, "get") == 0) {
         int64_t id = -1;
-        if (argv[optind + 1] == NULL) {
-            if (scanf("%" SCNd64 "\n", &id) != 1) {
-                critical("no id provided\n");
-                exit_status = 1;
-                goto cleanup;
-            }
-        } else {
-            id = atoll(argv[optind + 1]);
-        }
-        if (id <= 0) {
-            critical("id should be a positive integer, got %s\n", argv[optind + 1]);
+        if (!get_id(argv[optind + 1], &id)) {
+            critical("failed to get id\n");
             exit_status = 1;
             goto cleanup;
         }
         exit_status = get(id);
     } else if (strcmp(action, "delete") == 0) {
         int64_t id = -1;
-        if (argv[optind + 1] == NULL) {
-            if (scanf("%" SCNd64 "\n", &id) != 1) {
-                critical("no id provided\n");
-                exit_status = 1;
-                goto cleanup;
-            }
-        } else {
-            id = atoll(argv[optind + 1]);
-        }
-        if (id <= 0) {
-            critical("id should be a positive integer, got %s\n", argv[optind + 1]);
+        if (!get_id(argv[optind + 1], &id)) {
+            critical("failed to get id\n");
             exit_status = 1;
             goto cleanup;
         }
