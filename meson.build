@@ -63,6 +63,12 @@ include_dirs = [
 
 executable('cclip',
     'src/cclip/cclip.c',
+    'src/cclip/utils.c',
+    'src/cclip/action_list.c',
+    'src/cclip/action_get.c',
+    'src/cclip/action_delete.c',
+    'src/cclip/action_wipe.c',
+    'src/cclip/action_vacuum.c',
     'src/common/xmalloc.c',
     include_directories: include_dirs,
     dependencies: [ sqlite3_dep ],
