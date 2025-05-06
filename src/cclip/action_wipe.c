@@ -27,10 +27,11 @@
 static void print_help_and_exit(FILE *stream, int rc) {
     const char *help =
         "Usage:\n"
-        "    cclip wipe [-t]\n"
+        "    cclip wipe [-ts]\n"
         "\n"
         "Command line options:\n"
         "    -t  Do not preserve tagged entries\n"
+        "    -s  Enable secure delete pragma\n"
     ;
 
     fprintf(stream, "%s", help);
@@ -39,11 +40,15 @@ static void print_help_and_exit(FILE *stream, int rc) {
 
 int action_wipe(int argc, char** argv) {
     bool preserve_tagged = true;
+    bool secure_delete = false;
 
     int opt;
     optind = 0;
-    while ((opt = getopt(argc, argv, ":ht")) != -1) {
+    while ((opt = getopt(argc, argv, ":hts")) != -1) {
         switch (opt) {
+        case 's':
+            secure_delete = true;
+            break;
         case 't':
             preserve_tagged = false;
             break;
@@ -70,6 +75,15 @@ int action_wipe(int argc, char** argv) {
     if (argc > 0) {
         fprintf(stderr, "extra arguments on the command line\n");
         return 1;
+    }
+
+    if (secure_delete) {
+        char* errmsg;
+        int ret = sqlite3_exec(db, "PRAGMA secure_delete = 1", NULL, NULL, &errmsg);
+        if (ret != SQLITE_OK) {
+            fprintf(stderr, "sqlite error: %s\n", errmsg);
+            return 1;
+        }
     }
 
     const char* sql;

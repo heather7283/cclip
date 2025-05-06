@@ -27,10 +27,11 @@
 static void print_help_and_exit(FILE *stream, int rc) {
     const char *help =
         "Usage:\n"
-        "    cclip delete ID\n"
+        "    cclip delete [-s] ID\n"
         "\n"
         "Command line options:\n"
-        "    ID      Entry id to delete (- to read from stdin)\n"
+        "    -s  Enable secure delete pragma\n"
+        "    ID  Entry id to delete (- to read from stdin)\n"
     ;
 
     fprintf(stream, "%s", help);
@@ -38,10 +39,15 @@ static void print_help_and_exit(FILE *stream, int rc) {
 }
 
 int action_delete(int argc, char** argv) {
+    bool secure_delete = false;
+
     int opt;
     optind = 0;
-    while ((opt = getopt(argc, argv, ":h")) != -1) {
+    while ((opt = getopt(argc, argv, ":hs")) != -1) {
         switch (opt) {
+        case 's':
+            secure_delete = true;
+            break;
         case 'h':
             print_help_and_exit(stdout, 0);
             break;
@@ -76,6 +82,15 @@ int action_delete(int argc, char** argv) {
     int64_t id;
     if (!get_id((strcmp(id_str, "-") == 0) ? NULL : id_str, &id)) {
         return 1;
+    }
+
+    if (secure_delete) {
+        char* errmsg;
+        int ret = sqlite3_exec(db, "PRAGMA secure_delete = 1", NULL, NULL, &errmsg);
+        if (ret != SQLITE_OK) {
+            fprintf(stderr, "sqlite error: %s\n", errmsg);
+            return 1;
+        }
     }
 
     const char* sql = "DELETE FROM history WHERE rowid = ?";
