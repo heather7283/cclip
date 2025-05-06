@@ -15,30 +15,23 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-#ifndef CONFIG_H
-#define CONFIG_H
+#ifndef CCLIP_LOG_H
+#define CCLIP_LOG_H
 
-#include <stdbool.h>
-#include <stddef.h>
+#include <stdio.h>
 
-#include "log.h"
-
-#define MAX_ACCEPTED_MIME_TYPES 64
-struct config {
-    int accepted_mime_types_count;
-    char* accepted_mime_types[MAX_ACCEPTED_MIME_TYPES];
-    size_t min_data_size;
-    const char* db_path;
-    bool primary_selection;
-    int max_entries_count;
-    bool create_db_if_not_exists;
-    size_t preview_len;
-    enum loglevel loglevel;
+enum loglevel {
+    LOGLEVEL_SILENT,
+    ERR,
+    WARN,
+    INFO,
+    DEBUG,
+    TRACE,
+    LOGLEVEL_MAX
 };
 
-extern struct config config;
+void log_init(FILE *stream, enum loglevel level);
+void log_print(enum loglevel level, const char* fmt, ...);
 
-const char* get_default_db_path(void);
-
-#endif /* #ifndef CONFIG_H */
+#endif /* #ifndef CCLIP_LOG_H */
 

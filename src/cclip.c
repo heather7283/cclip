@@ -23,9 +23,10 @@
 #include <unistd.h>
 #include <inttypes.h>
 #include <limits.h>
+#include <stdlib.h>
 #include <errno.h>
 
-#include "common.h"
+#include "log.h"
 #include "xmalloc.h"
 
 unsigned int DEBUG_LEVEL = 0;
@@ -45,14 +46,14 @@ bool str_to_int64(const char* str, int64_t* res) {
         *res = res_tmp;
         return true;
     }
-    err("failed to convert %s to int64\n", str);
+    log_print(ERR, "failed to convert %s to int64\n", str);
     return false;
 }
 
 bool int64_from_stdin(int64_t* res) {
     int64_t res_tmp;
     if (scanf("%ld", &res_tmp) != 1) {
-        err("failed to read a number from stdin\n");
+        log_print(ERR, "failed to read a number from stdin\n");
         return false;
     };
     *res = res_tmp;
@@ -79,7 +80,7 @@ const char* get_default_db_path(void) {
     } else if (home != NULL) {
         snprintf(db_path, sizeof(db_path), "%s/.local/share/cclip/db.sqlite3", home);
     } else {
-        err("both HOME and XDG_DATA_HOME are unset, unable to determine db file path\n");
+        log_print(ERR, "both HOME and XDG_DATA_HOME are unset, unable to determine db file path\n");
         return NULL;
     }
 
@@ -96,14 +97,14 @@ int print_row(void* data, int argc, char** argv, char** column_names) {
 
 int action_list(char* fields) {
     /* IMPORTANT: EDIT THIS IF YOU EVER ADD MORE THAN 3 ALIASES */
-    static const char* allowed_fields[][4] = {
+    const char* allowed_fields[][4] = {
         {     "rowid",    "id",         NULL },
         { "timestamp",  "time",         NULL },
         { "mime_type",  "mime", "type", NULL },
         {   "preview",                  NULL },
         { "data_size",  "size",         NULL },
     };
-    static const int allowed_fields_count = sizeof(allowed_fields) / sizeof(allowed_fields[0]);
+    const int allowed_fields_count = sizeof(allowed_fields) / sizeof(allowed_fields[0]);
 
     const char* selected_fields[allowed_fields_count];
     int selected_fields_count = 0;
@@ -117,7 +118,7 @@ int action_list(char* fields) {
         char* token = strtok(fields, ",");
         while (token != NULL) {
             if (selected_fields_count >= allowed_fields_count) {
-                critical("extra field: %s, up to %d allowed\n", token, allowed_fields_count);
+                log_print(ERR, "extra field: %s, up to %d allowed", token, allowed_fields_count);
                 return 1;
             }
 
@@ -135,7 +136,7 @@ int action_list(char* fields) {
 
 
             if (!is_valid_token) {
-                critical("invalid field: %s\n", token);
+                log_print(ERR, "invalid field: %s", token);
                 return 1;
             }
 
@@ -144,7 +145,7 @@ int action_list(char* fields) {
     }
 
     if (selected_fields_count < 1) {
-        critical("no fields selected\n");
+        log_print(ERR, "no fields selected");
         return 1;
     }
 
@@ -162,7 +163,7 @@ int action_list(char* fields) {
 
     retcode = sqlite3_exec(db, sql, print_row, NULL, &errmsg);
     if (retcode != SQLITE_OK) {
-        critical("sqlite error: %s\n", errmsg);
+        log_print(ERR, "sqlite error: %s", errmsg);
         return 1;
     }
 
@@ -177,7 +178,7 @@ int action_get(int64_t id) {
 
     retcode = sqlite3_prepare(db, sql, -1, &stmt, NULL);
     if (retcode != SQLITE_OK) {
-        critical("sqlite error: %s\n", sqlite3_errmsg(db));
+        log_print(ERR, "sqlite error: %s", sqlite3_errmsg(db));
         return 1;
     }
 
@@ -190,10 +191,10 @@ int action_get(int64_t id) {
 
         fwrite(data, 1, data_size, stdout);
     } else if (retcode == SQLITE_DONE) {
-        critical("no entry found with id %li\n", id);
+        log_print(ERR, "no entry found with id %li", id);
         return 1;
     } else {
-        critical("sqlite error: %s\n", sqlite3_errmsg(db));
+        log_print(ERR, "sqlite error: %s", sqlite3_errmsg(db));
         return 1;
     }
 
@@ -210,7 +211,7 @@ int action_delete(int64_t id) {
 
     retcode = sqlite3_prepare(db, sql, -1, &stmt, NULL);
     if (retcode != SQLITE_OK) {
-        critical("sqlite error: %s\n", sqlite3_errmsg(db));
+        log_print(ERR, "sqlite error: %s", sqlite3_errmsg(db));
         return 1;
     }
 
@@ -219,10 +220,10 @@ int action_delete(int64_t id) {
     retcode = sqlite3_step(stmt);
     if (retcode == SQLITE_DONE) {
         if (sqlite3_changes(db) == 0) {
-            warn("table was not modified, maybe entry with specified id does not exists\n");
+            log_print(WARN, "table was not modified, maybe entry with specified id does not exists");
         }
     } else {
-        critical("sqlite error: %s\n", sqlite3_errmsg(db));
+        log_print(ERR, "sqlite error: %s", sqlite3_errmsg(db));
         return 1;
     }
 
@@ -239,13 +240,13 @@ int action_wipe(void) {
 
     retcode = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
     if (retcode != SQLITE_OK) {
-        critical("sqlite error: %s\n", sqlite3_errmsg(db));
+        log_print(ERR, "sqlite error: %s", sqlite3_errmsg(db));
         return 1;
     }
 
     retcode = sqlite3_step(stmt);
     if (retcode != SQLITE_DONE) {
-        critical("sqlite error: %s\n", sqlite3_errmsg(db));
+        log_print(ERR, "sqlite error: %s", sqlite3_errmsg(db));
         return 1;
     }
 
@@ -260,7 +261,7 @@ int action_vacuum(void) {
 
     retcode = sqlite3_exec(db, "VACUUM", NULL, NULL, &errmsg);
     if (retcode != SQLITE_OK) {
-        critical("sqlite error: %s\n", errmsg);
+        log_print(ERR, "sqlite error: %s", errmsg);
         return 1;
     }
 
@@ -315,15 +316,15 @@ int parse_command_line(int argc, char** argv) {
             print_help_and_exit(0);
             break;
         case '?':
-            critical("unknown option: %c\n", optopt);
+            log_print(ERR, "unknown option: %c", optopt);
             print_help_and_exit(1);
             break;
         case ':':
-            critical("missing arg for %c\n", optopt);
+            log_print(ERR, "missing arg for %c", optopt);
             print_help_and_exit(1);
             break;
         default:
-            err("error while parsing command line options\n");
+            log_print(ERR, "error while parsing command line options\n");
             return -1;
         }
     }
@@ -335,8 +336,10 @@ int parse_command_line(int argc, char** argv) {
 int main(int argc, char** argv) {
     int exit_status = 0;
 
+    log_init(stderr, LOGLEVEL_MAX);
+
     if (parse_command_line(argc, argv) < 0) {
-        err("error while parsing command line options\n");
+        log_print(ERR, "error while parsing command line options\n");
         exit_status = 1;
         goto cleanup;
     };
@@ -349,7 +352,7 @@ int main(int argc, char** argv) {
     char* errmsg;
 
     if ((retcode = sqlite3_open(db_path, &db)) != SQLITE_OK) {
-        err("sqlite error: %s\n", sqlite3_errstr(retcode));
+        log_print(ERR, "sqlite error: %s\n", sqlite3_errstr(retcode));
         exit_status = 1;
         goto cleanup;
     }
@@ -357,14 +360,14 @@ int main(int argc, char** argv) {
     if (secure_delete) {
         retcode = sqlite3_exec(db, "PRAGMA secure_delete = 1", NULL, NULL, &errmsg);
         if (retcode != SQLITE_OK) {
-            critical("sqlite error: %s\n", errmsg);
+            log_print(ERR, "sqlite error: %s", errmsg);
             exit_status = 1;
             goto cleanup;
         }
     }
 
     if (argv[optind] == NULL) {
-        critical("no action provided\n");
+        log_print(ERR, "no action provided");
         exit_status = 1;
         goto cleanup;
     }
@@ -379,7 +382,7 @@ int main(int argc, char** argv) {
     } else if (strcmp(action, "get") == 0) {
         int64_t id = -1;
         if (!get_id(argv[optind], &id)) {
-            critical("failed to get id\n");
+            log_print(ERR, "failed to get id");
             exit_status = 1;
             goto cleanup;
         }
@@ -387,7 +390,7 @@ int main(int argc, char** argv) {
     } else if (strcmp(action, "delete") == 0) {
         int64_t id = -1;
         if (!get_id(argv[optind], &id)) {
-            critical("failed to get id\n");
+            log_print(ERR, "failed to get id");
             exit_status = 1;
             goto cleanup;
         }
@@ -397,7 +400,7 @@ int main(int argc, char** argv) {
     } else if (strcmp(action, "vacuum") == 0) {
         exit_status = action_vacuum();
     } else {
-        critical("invalid action: %s\n", action);
+        log_print(ERR, "invalid action: %s", action);
         exit_status = 1;
         goto cleanup;
     }

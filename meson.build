@@ -58,6 +58,7 @@ xxhash_lib = static_library('xxhash', 'thirdparty/xxhash/xxhash.c')
 
 executable('cclip',
     'src/cclip.c',
+    'src/log.c',
     'src/xmalloc.c',
     dependencies: [ sqlite3_dep ],
     install: true
@@ -69,6 +70,7 @@ executable('cclipd',
     'src/wayland.c',
     'src/preview.c',
     'src/config.c',
+    'src/log.c',
     'src/xmalloc.c',
     private_code,
     client_header,

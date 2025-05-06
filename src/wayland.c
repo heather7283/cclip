@@ -19,15 +19,15 @@
 #include <string.h>
 #include <errno.h>
 #include <fnmatch.h>
+#include <stdlib.h>
 #include <wayland-client.h>
 
-#include <wlr-data-control-unstable-v1-client-protocol.h>
-
+#include "wlr-data-control-unstable-v1-client-protocol.h"
 #include "wayland.h"
 #include "db.h"
 #include "preview.h"
 #include "config.h"
-#include "common.h"
+#include "log.h"
 #include "xmalloc.h"
 
 struct {
@@ -56,7 +56,7 @@ static const char* pick_mime_type(void) {
             const char* type = offered_mime_types[j];
 
             if (fnmatch(pattern, type, 0) == 0) {
-                debug("selected mime type: %s\n", type);
+                log_print(DEBUG, "selected mime type: %s", type);
                 return type;
             }
         }
@@ -88,7 +88,7 @@ static size_t receive_data(int fd, char** buffer) {
     }
 
     if (bytes_read == -1) {
-        err("error reading from pipe: %s\n", strerror(errno));
+        log_print(ERR, "error reading from pipe: %s", strerror(errno));
     }
 
     close(fd);
@@ -103,34 +103,34 @@ static void receive_offer(struct zwlr_data_control_offer_v1* offer) {
 
     mime_type = xstrdup(pick_mime_type());
     if (mime_type == NULL) {
-        debug("didn't match any mime type, not receiving this offer\n");
+        log_print(DEBUG, "didn't match any mime type, not receiving this offer");
         goto out;
     }
 
     int pipes[2];
     if (pipe(pipes) == -1) {
-        err("failed to create pipe\n");
+        log_print(ERR, "failed to create pipe");
         goto out;
     }
 
-    trace("receiving offer %p...\n", (void*)offer);
+    log_print(TRACE, "receiving offer %p...", (void*)offer);
     zwlr_data_control_offer_v1_receive(offer, mime_type, pipes[1]);
     /* make sure the sender received our request and is ready for transfer */
     wl_display_roundtrip(wayland.display);
     close(pipes[1]);
 
     size_t bytes_read = receive_data(pipes[0], &buffer);
-    trace("done receiving offer %p\n", (void*)offer);
+    log_print(TRACE, "done receiving offer %p", (void*)offer);
 
     if (bytes_read == 0) {
-        warn("received 0 bytes\n");
+        log_print(WARN, "received 0 bytes");
         goto out;
     } else {
-        debug("received %" PRIu64 " bytes\n", bytes_read);
+        log_print(DEBUG, "received %" PRIu64 " bytes", bytes_read);
     }
 
     if (bytes_read < config.min_data_size) {
-        debug("received less bytes than min_data_size, not saving this entry\n");
+        log_print(DEBUG, "received less bytes than min_data_size, not saving this entry");
         goto out;
     }
 
@@ -143,7 +143,7 @@ static void receive_offer(struct zwlr_data_control_offer_v1* offer) {
     new_entry.preview = generate_preview(buffer, config.preview_len, bytes_read, mime_type);
 
     if (insert_db_entry(&new_entry, config.max_entries_count) < 0) {
-        err("failed to insert entry into database!\n");
+        log_print(ERR, "failed to insert entry into database!");
     };
 
 out:
@@ -154,11 +154,11 @@ out:
 
 static void mime_type_offer_handler(void* data, struct zwlr_data_control_offer_v1* offer,
                                     const char* mime_type) {
-    trace("got mime type offer %s for offer %p\n", mime_type, (void*)offer);
+    log_print(TRACE, "got mime type offer %s for offer %p", mime_type, (void*)offer);
 
     if (offered_mime_types_count >= MAX_OFFERED_MIME_TYPES) {
-        warn("offered_mime_types array is full, "
-             "but another mime type was received! %s\n", mime_type);
+        log_print(WARN, "offered_mime_types array is full, "
+                  "but another mime type was received! %s", mime_type);
     } else {
         snprintf(offered_mime_types[offered_mime_types_count],
                  sizeof(offered_mime_types[offered_mime_types_count]), "%s", mime_type);
@@ -172,7 +172,7 @@ const struct zwlr_data_control_offer_v1_listener data_control_offer_listener = {
 
 static void data_offer_handler(void* data, struct zwlr_data_control_device_v1* device,
                         struct zwlr_data_control_offer_v1* offer) {
-    debug("got new wlr_data_control_offer %p\n", (void*)offer);
+    log_print(DEBUG, "got new wlr_data_control_offer %p", (void*)offer);
 
     offered_mime_types_count = 0;
 
@@ -187,22 +187,22 @@ static void common_selection_handler(struct zwlr_data_control_offer_v1* offer, b
     if (!primary || config.primary_selection) {
         receive_offer(offer);
     } else {
-        debug("ignoring primary selection event for offer %p\n", (void*)offer);
+        log_print(DEBUG, "ignoring primary selection event for offer %p", (void*)offer);
     }
 
-    trace("destroying offer %p\n", (void*)offer);
+    log_print(TRACE, "destroying offer %p", (void*)offer);
     zwlr_data_control_offer_v1_destroy(offer);
 }
 
 static void selection_handler(void* data, struct zwlr_data_control_device_v1* device,
                               struct zwlr_data_control_offer_v1* offer) {
-    debug("got selection event for offer %p\n", (void*)offer);
+    log_print(DEBUG, "got selection event for offer %p", (void*)offer);
     common_selection_handler(offer, false);
 }
 
 static void primary_selection_handler(void* data, struct zwlr_data_control_device_v1* device,
                                       struct zwlr_data_control_offer_v1* offer) {
-    debug("got primary selection event for offer %p\n", (void*)offer);
+    log_print(DEBUG, "got primary selection event for offer %p", (void*)offer);
     common_selection_handler(offer, true);
 }
 
@@ -235,7 +235,7 @@ static const struct wl_registry_listener registry_listener = {
 int wayland_init(void) {
     wayland.display = wl_display_connect(NULL);
     if (wayland.display == NULL) {
-        err("failed to connect to display\n");
+        log_print(ERR, "failed to connect to display");
         return -1;
     }
 
@@ -243,7 +243,7 @@ int wayland_init(void) {
 
     wayland.registry = wl_display_get_registry(wayland.display);
     if (wayland.registry == NULL) {
-        err("failed to get registry\n");
+        log_print(ERR, "failed to get registry");
         return -1;
     }
 
@@ -252,19 +252,19 @@ int wayland_init(void) {
     wl_display_roundtrip(wayland.display);
 
     if (wayland.seat == NULL) {
-        err("failed to bind to seat interface\n");
+        log_print(ERR, "failed to bind to seat interface");
         return -1;
     }
 
     if (wayland.data_control_manager == NULL) {
-        err("failed to bind to data_control_manager interface\n");
+        log_print(ERR, "failed to bind to data_control_manager interface");
         return -1;
     }
 
     wayland.data_control_device =
         zwlr_data_control_manager_v1_get_data_device(wayland.data_control_manager, wayland.seat);
     if (wayland.data_control_device == NULL) {
-        err("data device is null\n");
+        log_print(ERR, "data device is null");
         return -1;
     }
 

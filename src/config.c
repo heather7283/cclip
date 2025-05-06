@@ -19,7 +19,7 @@
 #include <limits.h>
 
 #include "config.h"
-#include "common.h"
+#include "log.h"
 
 struct config config = {
     .accepted_mime_types_count = 0,
@@ -30,6 +30,7 @@ struct config config = {
     .max_entries_count = 1000,
     .create_db_if_not_exists = true,
     .preview_len = 128,
+    .loglevel = INFO,
 };
 
 const char* get_default_db_path(void) {
@@ -43,7 +44,7 @@ const char* get_default_db_path(void) {
     } else if (home != NULL) {
         snprintf(db_path, sizeof(db_path), "%s/.local/share/cclip/db.sqlite3", home);
     } else {
-        err("both HOME and XDG_DATA_HOME are unset, unable to determine db file path\n");
+        log_print(ERR, "both HOME and XDG_DATA_HOME are unset, unable to determine db file path");
         return NULL;
     }
 

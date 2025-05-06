@@ -20,7 +20,7 @@
 #include <inttypes.h>
 
 #include "preview.h"
-#include "common.h"
+#include "log.h"
 #include "xmalloc.h"
 
 static void generate_text_preview(char* out_buf, const char* const in_buf,
@@ -149,7 +149,7 @@ char* generate_preview(const void* const data, size_t preview_len,
         generate_binary_preview(preview, preview_len, data_size, mime_type);
     }
 
-    debug("generated preview: %s\n", preview);
+    log_print(DEBUG, "generated preview: %s", preview);
 
     return preview;
 }

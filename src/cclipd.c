@@ -22,16 +22,15 @@
 #include <unistd.h>
 #include <signal.h>
 #include <errno.h>
+#include <stdlib.h>
 
 #include "wayland.h"
-#include "common.h"
+#include "log.h"
 #include "db.h"
 #include "config.h"
 #include "xmalloc.h"
 
 #define EPOLL_MAX_EVENTS 16
-
-unsigned int DEBUG_LEVEL = 0;
 
 void print_version_and_exit(void) {
     fprintf(stderr, "cclipd version %s, branch %s, commit %s\n",
@@ -79,21 +78,21 @@ int parse_command_line(int argc, char** argv) {
         case 's':
             config.min_data_size = atoi(optarg);
             if (config.min_data_size < 1) {
-                err("MINSIZE must be a positive integer, got %s\n", optarg);
+                log_print(ERR, "MINSIZE must be a positive integer, got %s", optarg);
                 return -1;
             }
             break;
         case 'c':
             config.max_entries_count = atoi(optarg);
             if (config.max_entries_count < 1) {
-                err("ENTRIES must be a positive integer, got %s\n", optarg);
+                log_print(ERR, "ENTRIES must be a positive integer, got %s", optarg);
                 return -1;
             }
             break;
         case 'P':
             config.preview_len = atoi(optarg);
             if (config.preview_len < 1) {
-                err("PREVIEW_LEN must be a positive integer, got %s\n", optarg);
+                log_print(ERR, "PREVIEW_LEN must be a positive integer, got %s", optarg);
                 return -1;
             }
             break;
@@ -104,7 +103,7 @@ int parse_command_line(int argc, char** argv) {
             config.create_db_if_not_exists = false;
             break;
         case 'v':
-            DEBUG_LEVEL += 1;
+            config.loglevel += 1;
             break;
         case 'V':
             print_version_and_exit();
@@ -113,15 +112,15 @@ int parse_command_line(int argc, char** argv) {
             print_help_and_exit(0);
             break;
         case '?':
-            critical("unknown option: %c\n", optopt);
+            log_print(ERR, "unknown option: %c", optopt);
             print_help_and_exit(1);
             break;
         case ':':
-            critical("missing arg for %c\n", optopt);
+            log_print(ERR, "missing arg for %c", optopt);
             print_help_and_exit(1);
             break;
         default:
-            err("error while parsing command line options\n");
+            log_print(ERR, "error while parsing command line options");
             return -1;
         }
     }
@@ -136,11 +135,15 @@ int main(int argc, char** argv) {
 
     int exit_status = 0;
 
+    log_init(stderr, ERR);
+
     if (parse_command_line(argc, argv) < 0) {
-        err("error while parsing command line options\n");
+        log_print(ERR, "error while parsing command line options");
         exit_status = 1;
         goto cleanup;
     };
+
+    log_init(stderr, config.loglevel);
 
     if (config.db_path == NULL) {
         config.db_path = get_default_db_path();
@@ -156,14 +159,14 @@ int main(int argc, char** argv) {
     }
 
     if (db_init(config.db_path, config.create_db_if_not_exists) < 0) {
-        critical("failed to init database\n");
+        log_print(ERR, "failed to init database");
         exit_status = 1;
         goto cleanup;
     };
 
     wayland_fd = wayland_init();
     if (wayland_fd < 0) {
-        critical("failed to init wayland stuff\n");
+        log_print(ERR, "failed to init wayland stuff");
         exit_status = 1;
         goto cleanup;
     };
@@ -175,7 +178,7 @@ int main(int argc, char** argv) {
     sigaddset(&mask, SIGTERM);
     sigaddset(&mask, SIGUSR1);
     if (sigprocmask(SIG_BLOCK, &mask, NULL) == -1) {
-        critical("failed to block signals: %s\n", strerror(errno));
+        log_print(ERR, "failed to block signals: %s", strerror(errno));
         exit_status = 1;
         goto cleanup;
     }
@@ -183,7 +186,7 @@ int main(int argc, char** argv) {
     /* set up signalfd */
     signal_fd = signalfd(-1, &mask, 0);
     if (signal_fd == -1) {
-        critical("failed to set up signalfd: %s\n", strerror(errno));
+        log_print(ERR, "failed to set up signalfd: %s", strerror(errno));
         exit_status = 1;
         goto cleanup;
     }
@@ -191,7 +194,7 @@ int main(int argc, char** argv) {
     /* set up epoll */
     epoll_fd = epoll_create1(0);
     if (epoll_fd == -1) {
-        critical("failed to set up epoll: %s\n", strerror(errno));
+        log_print(ERR, "failed to set up epoll: %s", strerror(errno));
         exit_status = 1;
         goto cleanup;
     }
@@ -201,7 +204,7 @@ int main(int argc, char** argv) {
     epoll_event.events = EPOLLIN;
     epoll_event.data.fd = wayland_fd;
     if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, wayland_fd, &epoll_event) == -1) {
-        critical("failed to add wayland fd to epoll list: %s\n", strerror(errno));
+        log_print(ERR, "failed to add wayland fd to epoll list: %s", strerror(errno));
         exit_status = 1;
         goto cleanup;
     }
@@ -209,7 +212,7 @@ int main(int argc, char** argv) {
     epoll_event.events = EPOLLIN;
     epoll_event.data.fd = signal_fd;
     if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, signal_fd, &epoll_event) == -1) {
-        critical("failed to add signal fd to epoll list: %s\n", strerror(errno));
+        log_print(ERR, "failed to add signal fd to epoll list: %s", strerror(errno));
         exit_status = 1;
         goto cleanup;
     }
@@ -223,7 +226,7 @@ int main(int argc, char** argv) {
         } while (number_fds == -1 && errno == EINTR); /* epoll_wait failing with EINTR is normal */
 
         if (number_fds == -1) {
-            critical("epoll_wait error: %s\n", strerror(errno));
+            log_print(ERR, "epoll_wait error: %s", strerror(errno));
             exit_status = 1;
             goto cleanup;
         }
@@ -233,7 +236,7 @@ int main(int argc, char** argv) {
             if (events[n].data.fd == wayland_fd) {
                 /* wayland events */
                 if (wayland_process_events() < 0) {
-                    critical("failed to process wayland events\n");
+                    log_print(ERR, "failed to process wayland events");
                     exit_status = 1;
                     goto cleanup;
                 }
@@ -242,7 +245,7 @@ int main(int argc, char** argv) {
                 struct signalfd_siginfo siginfo;
                 ssize_t bytes_read = read(signal_fd, &siginfo, sizeof(siginfo));
                 if (bytes_read != sizeof(siginfo)) {
-                    critical("failed to read signalfd_siginfo from signal_fd\n");
+                    log_print(ERR, "failed to read signalfd_siginfo from signal_fd");
                     exit_status = 1;
                     goto cleanup;
                 }
@@ -251,17 +254,17 @@ int main(int argc, char** argv) {
                 switch (signo) {
                 case SIGINT:
                 case SIGTERM:
-                    info("received signal %d, exiting\n", signo);
+                    log_print(INFO, "received signal %d, exiting", signo);
                     goto cleanup;
                 case SIGUSR1:
-                    info("received SIGUSR1, closing and reopening db connection\n");
+                    log_print(INFO, "received SIGUSR1, closing and reopening db connection");
                     if (db_cleanup() < 0) {
-                        err("failed to deinit db\n");
+                        log_print(ERR, "failed to deinit db");
                         exit_status = 1;
                         goto cleanup;
                     };
                     if (db_init(config.db_path, config.create_db_if_not_exists) < 0) {
-                        err("failed to reinit db\n");
+                        log_print(ERR, "failed to reinit db");
                         exit_status = 1;
                         goto cleanup;
                     };
