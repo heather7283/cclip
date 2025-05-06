@@ -74,6 +74,10 @@ void print_help_and_exit(FILE *stream, int rc) {
         "\n"
         "Actions (pass -h after action to see detailed help):\n"
         "    list [-t] [FIELDS]\n"
+        "    get ID [FIELDS]\n"
+        "    delete [-s] ID\n"
+        "    wipe [-ts]\n"
+        "    vacuum\n"
     ;
 
     fprintf(stream, "%s", help);

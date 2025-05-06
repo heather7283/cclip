@@ -28,11 +28,11 @@
 static void print_help_and_exit(FILE *stream, int rc) {
     const char *help =
         "Usage:\n"
-        "    cclip list [-t] ROWS\n"
+        "    cclip list [-t] [FIELDS]\n"
         "\n"
         "Command line options:\n"
-        "    -t              Only list entries with non-empty tag\n"
-        "    ROWS            Comma-separated list of rows to print\n"
+        "    -t      Only list entries with non-empty tag\n"
+        "    FIELDS  Comma-separated list of fields to print\n"
     ;
 
     fprintf(stream, "%s", help);

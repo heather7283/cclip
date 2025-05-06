@@ -29,11 +29,11 @@
 static void print_help_and_exit(FILE *stream, int rc) {
     const char *help =
         "Usage:\n"
-        "    cclip get ID [ROWS]\n"
+        "    cclip get ID [FIELDS]\n"
         "\n"
         "Command line options:\n"
         "    ID      Entry id to get (- to read from stdin)\n"
-        "    ROWS    Comma-separated list of rows to print instead of entry data\n"
+        "    FIELDS  Comma-separated list of rows to print instead of entry data\n"
     ;
 
     fprintf(stream, "%s", help);
