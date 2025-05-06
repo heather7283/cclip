@@ -29,9 +29,11 @@
 static void print_help_and_exit(FILE *stream, int rc) {
     const char *help =
         "Usage:\n"
+        "    cclip tag -d ID\n"
         "    cclip tag ID TAG\n"
         "\n"
         "Command line options:\n"
+        "    -d      Delete the tag instead of adding\n"
         "    ID      Entry id to tag (- to read from stdin)\n"
         "    TAG     String to add as entry tag\n"
     ;
@@ -41,10 +43,15 @@ static void print_help_and_exit(FILE *stream, int rc) {
 }
 
 int action_tag(int argc, char** argv) {
+    bool delete_tag = false;
+
     int opt;
     optind = 0;
-    while ((opt = getopt(argc, argv, ":h")) != -1) {
+    while ((opt = getopt(argc, argv, ":hd")) != -1) {
         switch (opt) {
+        case 'd':
+            delete_tag = true;
+            break;
         case 'h':
             print_help_and_exit(stdout, 0);
             break;
@@ -67,15 +74,28 @@ int action_tag(int argc, char** argv) {
 
     char* id_str;
     char* tag_str;
-    if (argc < 1) {
-        fprintf(stderr, "not enough arguments\n");
-        return 1;
-    } else if (argc == 2) {
-        id_str = argv[0];
-        tag_str = argv[1];
+    if (delete_tag) {
+        if (argc < 1) {
+            fprintf(stderr, "not enough arguments\n");
+            return 1;
+        } else if (argc == 1) {
+            id_str = argv[0];
+            tag_str = NULL;
+        } else {
+            fprintf(stderr, "extra arguments on the command line\n");
+            return 1;
+        }
     } else {
-        fprintf(stderr, "extra arguments on the command line\n");
-        return 1;
+        if (argc < 2) {
+            fprintf(stderr, "not enough arguments\n");
+            return 1;
+        } else if (argc == 2) {
+            id_str = argv[0];
+            tag_str = argv[1];
+        } else {
+            fprintf(stderr, "extra arguments on the command line\n");
+            return 1;
+        }
     }
 
     int64_t id;
