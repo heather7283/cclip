@@ -56,25 +56,30 @@ client_header = custom_target('client_header',
 
 xxhash_lib = static_library('xxhash', 'thirdparty/xxhash/xxhash.c')
 
+include_dirs = [
+  'thirdparty/xxhash',
+  'src/common'
+]
+
 executable('cclip',
-    'src/cclip.c',
-    'src/log.c',
-    'src/xmalloc.c',
+    'src/cclip/cclip.c',
+    'src/common/xmalloc.c',
+    include_directories: include_dirs,
     dependencies: [ sqlite3_dep ],
     install: true
 )
 
 executable('cclipd',
-    'src/cclipd.c',
-    'src/db.c',
-    'src/wayland.c',
-    'src/preview.c',
-    'src/config.c',
-    'src/log.c',
-    'src/xmalloc.c',
+    'src/cclipd/cclipd.c',
+    'src/cclipd/db.c',
+    'src/cclipd/wayland.c',
+    'src/cclipd/preview.c',
+    'src/cclipd/config.c',
+    'src/cclipd/log.c',
+    'src/common/xmalloc.c',
     private_code,
     client_header,
-    include_directories: [ 'thirdparty/xxhash' ],
+    include_directories: include_dirs,
     link_with: [ xxhash_lib ],
     dependencies: [ sqlite3_dep, wayland_client_dep ],
     install: true
