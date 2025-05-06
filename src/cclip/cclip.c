@@ -28,6 +28,7 @@
 #include "cclip.h"
 #include "action_list.h"
 #include "action_get.h"
+#include "action_tag.h"
 #include "action_delete.h"
 #include "action_wipe.h"
 #include "action_vacuum.h"
@@ -141,6 +142,8 @@ int main(int argc, char** argv) {
         exit_status = action_get(argc, argv);
     } else if (strcmp(argv[0], "delete") == 0) {
         exit_status = action_delete(argc, argv);
+    } else if (strcmp(argv[0], "tag") == 0) {
+        exit_status = action_tag(argc, argv);
     } else if (strcmp(argv[0], "wipe") == 0) {
         exit_status = action_wipe(argc, argv);
     } else if (strcmp(argv[0], "vacuum") == 0) {

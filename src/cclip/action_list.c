@@ -41,9 +41,9 @@ static void print_help_and_exit(FILE *stream, int rc) {
 
 static int print_row(void* data, int argc, char** argv, char** column_names) {
     for (int i = 0; i < argc - 1; i++) {
-        printf("%s\t", argv[i]);
+        printf("%s\t", argv[i] ? argv[i] : "");
     }
-    printf("%s\n", argv[argc - 1]);
+    printf("%s\n", argv[argc - 1] ? argv[argc - 1] : "");
     return 0;
 }
 
@@ -92,7 +92,7 @@ int action_list(int argc, char** argv) {
 
     const char sql1[] = "SELECT ";
     const char sql2[] = " FROM history";
-    const char sql3[] = " WHERE tag != ''";
+    const char sql3[] = " WHERE tag IS NOT NULL";
     const char sql4[] = " ORDER BY timestamp DESC";
     char sql[MAX_FIELD_LIST_SIZE + sizeof(sql1) + sizeof(sql2) + sizeof(sql3) + sizeof(sql4)];
     snprintf(sql, sizeof(sql), "%s%s%s%s%s", sql1, fields, sql2, only_tagged ? sql3 : "", sql4);

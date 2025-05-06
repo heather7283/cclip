@@ -88,7 +88,7 @@ static char* stpecpy(char* dst, char* end, const char* restrict src) {
 
 const char* build_field_list(char* raw_list) {
     enum fields {
-        ROWID, TIMESTAMP, MIME_TYPE, PREVIEW, DATA_SIZE, ALLOWED_FIELDS_COUNT
+        ROWID, TIMESTAMP, MIME_TYPE, PREVIEW, DATA_SIZE, TAG, ALLOWED_FIELDS_COUNT
     };
     const char** allowed_fields[ALLOWED_FIELDS_COUNT];
     allowed_fields[ROWID]     = (const char*[]){"rowid", "id", NULL};
@@ -96,6 +96,7 @@ const char* build_field_list(char* raw_list) {
     allowed_fields[MIME_TYPE] = (const char*[]){"mime_type", "mime", "type", NULL};
     allowed_fields[PREVIEW]   = (const char*[]){"preview", NULL};
     allowed_fields[DATA_SIZE] = (const char*[]){"data_size", "size", NULL};
+    allowed_fields[TAG]       = (const char*[]){"tag", NULL};
 
     static char result_list[MAX_FIELD_LIST_SIZE];
     char *result_pos = result_list;

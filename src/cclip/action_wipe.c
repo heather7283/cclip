@@ -88,7 +88,7 @@ int action_wipe(int argc, char** argv) {
 
     const char* sql;
     if (preserve_tagged) {
-        sql = "DELETE FROM history WHERE tag = ''";
+        sql = "DELETE FROM history WHERE tag IS NULL";
     } else {
         sql = "DELETE FROM history";
     }

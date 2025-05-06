@@ -22,33 +22,25 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "action_get.h"
+#include "action_tag.h"
 #include "cclip.h"
 #include "utils.h"
 
 static void print_help_and_exit(FILE *stream, int rc) {
     const char *help =
         "Usage:\n"
-        "    cclip get ID [FIELDS]\n"
+        "    cclip tag ID TAG\n"
         "\n"
         "Command line options:\n"
-        "    ID      Entry id to get (- to read from stdin)\n"
-        "    FIELDS  Comma-separated list of rows to print instead of entry data\n"
+        "    ID      Entry id to tag (- to read from stdin)\n"
+        "    TAG     String to add as entry tag\n"
     ;
 
     fprintf(stream, "%s", help);
     exit(rc);
 }
 
-static int print_row(void* data, int argc, char** argv, char** column_names) {
-    for (int i = 0; i < argc - 1; i++) {
-        printf("%s\t", argv[i] ? argv[i] : "");
-    }
-    printf("%s\n", argv[argc - 1] ? argv[argc - 1] : "");
-    return 0;
-}
-
-int action_get(int argc, char** argv) {
+int action_tag(int argc, char** argv) {
     int opt;
     optind = 0;
     while ((opt = getopt(argc, argv, ":h")) != -1) {
@@ -74,16 +66,13 @@ int action_get(int argc, char** argv) {
     argv = &argv[optind];
 
     char* id_str;
-    char* fields_str;
+    char* tag_str;
     if (argc < 1) {
         fprintf(stderr, "not enough arguments\n");
         return 1;
-    } else if (argc == 1) {
-        id_str = argv[0];
-        fields_str = NULL;
     } else if (argc == 2) {
         id_str = argv[0];
-        fields_str = argv[1];
+        tag_str = argv[1];
     } else {
         fprintf(stderr, "extra arguments on the command line\n");
         return 1;
@@ -94,48 +83,27 @@ int action_get(int argc, char** argv) {
         return 1;
     }
 
-    if (fields_str == NULL) {
-        const char* sql = "SELECT data FROM history WHERE rowid = ?";
-        sqlite3_stmt* stmt;
+    const char* sql = "UPDATE history SET tag = ? WHERE rowid = ?";
 
-        if (sqlite3_prepare(db, sql, -1, &stmt, NULL) != SQLITE_OK) {
-            fprintf(stderr, "sqlite error: %s\n", sqlite3_errmsg(db));
+    sqlite3_stmt* stmt;
+    int ret = sqlite3_prepare(db, sql, -1, &stmt, NULL);
+    if (ret != SQLITE_OK) {
+        fprintf(stderr, "sqlite error: %s\n", sqlite3_errmsg(db));
+        return 1;
+    }
+
+    sqlite3_bind_text(stmt, 1, tag_str, -1 /* null-terminated */, SQLITE_STATIC);
+    sqlite3_bind_int64(stmt, 2, id);
+
+    ret = sqlite3_step(stmt);
+    if (ret == SQLITE_DONE) {
+        if (sqlite3_changes(db) == 0) {
+            fprintf(stderr, "table was not modified, does id %li exist?\n", id);
             return 1;
         }
-
-        sqlite3_bind_int(stmt, 1, id);
-
-        int ret = sqlite3_step(stmt);
-        if (ret == SQLITE_ROW) {
-            int data_size = sqlite3_column_bytes(stmt, 0);
-            const void* data = sqlite3_column_blob(stmt, 0);
-            fwrite(data, 1, data_size, stdout);
-        } else if (ret == SQLITE_DONE) {
-            fprintf(stderr, "no entry found with id %li\n", id);
-            return 1;
-        } else {
-            fprintf(stderr, "sqlite error: %s\n", sqlite3_errmsg(db));
-            return 1;
-        }
-
-        sqlite3_finalize(stmt);
     } else {
-        const char* fields = build_field_list(fields_str);
-        if (fields == NULL) {
-            return 1;
-        }
-
-        const char sql1[] = "SELECT ";
-        const char sql2[] = " FROM history";
-        const char sql3[] = " WHERE rowid = ";
-        char sql[MAX_FIELD_LIST_SIZE + sizeof(sql1) + sizeof(sql2) + sizeof(sql3)];
-        snprintf(sql, sizeof(sql), "%s%s%s%s%li", sql1, fields, sql2, sql3, id);
-
-        char* errmsg;
-        if (sqlite3_exec(db, sql, print_row, NULL, &errmsg) != SQLITE_OK) {
-            fprintf(stderr, "sqlite error: %s\n", errmsg);
-            return 1;
-        }
+        fprintf(stderr, "sqlite error: %s\n", sqlite3_errmsg(db));
+        return 1;
     }
 
     return 0;

@@ -46,14 +46,15 @@ enum {
     TIMESTAMP_LOCATION = 6,
 };
 static const char insert_stmt[] =
-    "INSERT OR REPLACE INTO history "
-    "(data, data_hash, data_size, preview, mime_type, timestamp) "
-    "VALUES (?, ?, ?, ?, ?, ?)";
+    "INSERT INTO history(data, data_hash, data_size, preview, mime_type, timestamp) "
+    "VALUES(?, ?, ?, ?, ?, ?) "
+    "ON CONFLICT(data_hash) DO UPDATE SET timestamp=excluded.timestamp";
 
 static const char delete_oldest_stmt[] =
     "DELETE FROM history WHERE rowid IN ( "
        "SELECT rowid FROM history "
-       "ORDER BY timestamp DESC "
+       "WHERE tag IS NULL "
+       "ORDER BY timestamp ASC "
        "LIMIT -1 OFFSET ? "
     ")";
 
@@ -64,7 +65,8 @@ static const char db_create_stmt[] =
         "data_size INTEGER NOT NULL, "
         "preview   TEXT    NOT NULL, "
         "mime_type TEXT    NOT NULL, "
-        "timestamp INTEGER NOT NULL "
+        "timestamp INTEGER NOT NULL, "
+        "tag       TEXT    UNIQUE "
     ")";
 
 static const char db_create_timestamp_index_stmt[] =
