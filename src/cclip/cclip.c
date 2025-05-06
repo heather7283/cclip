@@ -77,6 +77,7 @@ void print_help_and_exit(FILE *stream, int rc) {
         "    list [-t] [FIELDS]\n"
         "    get ID [FIELDS]\n"
         "    delete [-s] ID\n"
+        "    tag ID TAG\n"
         "    wipe [-ts]\n"
         "    vacuum\n"
     ;
