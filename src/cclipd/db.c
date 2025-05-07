@@ -54,7 +54,7 @@ static const char delete_oldest_stmt[] =
     "DELETE FROM history WHERE rowid IN ( "
        "SELECT rowid FROM history "
        "WHERE tag IS NULL "
-       "ORDER BY timestamp ASC "
+       "ORDER BY timestamp DESC "
        "LIMIT -1 OFFSET ? "
     ")";
 
