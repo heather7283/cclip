@@ -28,10 +28,12 @@
 #include "cclip.h"
 #include "action_list.h"
 #include "action_get.h"
+#include "action_tag.h"
 #include "action_delete.h"
 #include "action_wipe.h"
 #include "action_vacuum.h"
 #include "xmalloc.h"
+#include "getopt.h"
 
 const char* db_path = NULL;
 struct sqlite3* db = NULL;
@@ -76,6 +78,7 @@ void print_help_and_exit(FILE *stream, int rc) {
         "    list [-t] [FIELDS]\n"
         "    get ID [FIELDS]\n"
         "    delete [-s] ID\n"
+        "    tag ID TAG | tag -d ID\n"
         "    wipe [-ts]\n"
         "    vacuum\n"
     ;
@@ -87,9 +90,6 @@ void print_help_and_exit(FILE *stream, int rc) {
 
 int main(int argc, char** argv) {
     int exit_status = 0;
-
-    /* see getopt(3) */
-    setenv("POSIXLY_CORRECT", "1", 0);
 
     int opt;
     while ((opt = getopt(argc, argv, ":d:Vh")) != -1) {
@@ -141,6 +141,8 @@ int main(int argc, char** argv) {
         exit_status = action_get(argc, argv);
     } else if (strcmp(argv[0], "delete") == 0) {
         exit_status = action_delete(argc, argv);
+    } else if (strcmp(argv[0], "tag") == 0) {
+        exit_status = action_tag(argc, argv);
     } else if (strcmp(argv[0], "wipe") == 0) {
         exit_status = action_wipe(argc, argv);
     } else if (strcmp(argv[0], "vacuum") == 0) {

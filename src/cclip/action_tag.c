@@ -19,8 +19,9 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <string.h>
 
-#include "action_list.h"
+#include "action_tag.h"
 #include "cclip.h"
 #include "utils.h"
 #include "getopt.h"
@@ -28,35 +29,29 @@
 static void print_help_and_exit(FILE *stream, int rc) {
     const char *help =
         "Usage:\n"
-        "    cclip list [-t] [FIELDS]\n"
+        "    cclip tag -d ID\n"
+        "    cclip tag ID TAG\n"
         "\n"
         "Command line options:\n"
-        "    -t      Only list entries with non-empty tag\n"
-        "    FIELDS  Comma-separated list of fields to print\n"
+        "    -d      Delete the tag instead of adding\n"
+        "    ID      Entry id to tag (- to read from stdin)\n"
+        "    TAG     String to add as entry tag\n"
     ;
 
     fprintf(stream, "%s", help);
     exit(rc);
 }
 
-static int print_row(void* data, int argc, char** argv, char** column_names) {
-    for (int i = 0; i < argc - 1; i++) {
-        printf("%s\t", argv[i] ? argv[i] : "");
-    }
-    printf("%s\n", argv[argc - 1] ? argv[argc - 1] : "");
-    return 0;
-}
-
-int action_list(int argc, char** argv) {
-    bool only_tagged = false;
+int action_tag(int argc, char** argv) {
+    bool delete_tag = false;
 
     int opt;
     optreset = 1;
     optind = 0;
-    while ((opt = getopt(argc, argv, ":th")) != -1) {
+    while ((opt = getopt(argc, argv, ":hd")) != -1) {
         switch (opt) {
-        case 't':
-            only_tagged = true;
+        case 'd':
+            delete_tag = true;
             break;
         case 'h':
             print_help_and_exit(stdout, 0);
@@ -78,29 +73,57 @@ int action_list(int argc, char** argv) {
     argc = argc - optind;
     argv = &argv[optind];
 
-    const char* fields = NULL;
-    if (argc < 1) {
-        fields = "rowid,mime_type,preview";
-    } else if (argc == 1) {
-        fields = build_field_list(argv[0]);
-        if (fields == NULL) {
+    char* id_str;
+    char* tag_str;
+    if (delete_tag) {
+        if (argc < 1) {
+            fprintf(stderr, "not enough arguments\n");
+            return 1;
+        } else if (argc == 1) {
+            id_str = argv[0];
+            tag_str = NULL;
+        } else {
+            fprintf(stderr, "extra arguments on the command line\n");
             return 1;
         }
     } else {
-        fprintf(stderr, "extra arguments on the command line\n");
+        if (argc < 2) {
+            fprintf(stderr, "not enough arguments\n");
+            return 1;
+        } else if (argc == 2) {
+            id_str = argv[0];
+            tag_str = argv[1];
+        } else {
+            fprintf(stderr, "extra arguments on the command line\n");
+            return 1;
+        }
+    }
+
+    int64_t id;
+    if (!get_id((strcmp(id_str, "-") == 0) ? NULL : id_str, &id)) {
         return 1;
     }
 
-    const char sql1[] = "SELECT ";
-    const char sql2[] = " FROM history";
-    const char sql3[] = " WHERE tag IS NOT NULL";
-    const char sql4[] = " ORDER BY timestamp DESC";
-    char sql[MAX_FIELD_LIST_SIZE + sizeof(sql1) + sizeof(sql2) + sizeof(sql3) + sizeof(sql4)];
-    snprintf(sql, sizeof(sql), "%s%s%s%s%s", sql1, fields, sql2, only_tagged ? sql3 : "", sql4);
+    const char* sql = "UPDATE history SET tag = ? WHERE rowid = ?";
 
-    char* errmsg;
-    if (sqlite3_exec(db, sql, print_row, NULL, &errmsg) != SQLITE_OK) {
-        fprintf(stderr, "sqlite error: %s\n", errmsg);
+    sqlite3_stmt* stmt;
+    int ret = sqlite3_prepare(db, sql, -1, &stmt, NULL);
+    if (ret != SQLITE_OK) {
+        fprintf(stderr, "sqlite error: %s\n", sqlite3_errmsg(db));
+        return 1;
+    }
+
+    sqlite3_bind_text(stmt, 1, tag_str, -1 /* null-terminated */, SQLITE_STATIC);
+    sqlite3_bind_int64(stmt, 2, id);
+
+    ret = sqlite3_step(stmt);
+    if (ret == SQLITE_DONE) {
+        if (sqlite3_changes(db) == 0) {
+            fprintf(stderr, "table was not modified, does id %li exist?\n", id);
+            return 1;
+        }
+    } else {
+        fprintf(stderr, "sqlite error: %s\n", sqlite3_errmsg(db));
         return 1;
     }
 
