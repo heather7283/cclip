@@ -15,7 +15,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-#include <getopt.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
@@ -25,6 +24,7 @@
 #include "action_tag.h"
 #include "cclip.h"
 #include "utils.h"
+#include "getopt.h"
 
 static void print_help_and_exit(FILE *stream, int rc) {
     const char *help =
@@ -46,6 +46,7 @@ int action_tag(int argc, char** argv) {
     bool delete_tag = false;
 
     int opt;
+    optreset = 1;
     optind = 0;
     while ((opt = getopt(argc, argv, ":hd")) != -1) {
         switch (opt) {

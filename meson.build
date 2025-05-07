@@ -58,6 +58,7 @@ xxhash_lib = static_library('xxhash', 'thirdparty/xxhash/xxhash.c')
 
 include_dirs = [
   'thirdparty/xxhash',
+  'thirdparty/getopt',
   'src/common'
 ]
 
@@ -71,6 +72,7 @@ executable('cclip',
     'src/cclip/action_wipe.c',
     'src/cclip/action_vacuum.c',
     'src/common/xmalloc.c',
+    'thirdparty/getopt/getopt.c',
     include_directories: include_dirs,
     dependencies: [ sqlite3_dep ],
     install: true
@@ -84,6 +86,7 @@ executable('cclipd',
     'src/cclipd/config.c',
     'src/cclipd/log.c',
     'src/common/xmalloc.c',
+    'thirdparty/getopt/getopt.c',
     private_code,
     client_header,
     include_directories: include_dirs,

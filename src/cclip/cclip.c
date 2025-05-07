@@ -33,6 +33,7 @@
 #include "action_wipe.h"
 #include "action_vacuum.h"
 #include "xmalloc.h"
+#include "getopt.h"
 
 const char* db_path = NULL;
 struct sqlite3* db = NULL;
@@ -89,9 +90,6 @@ void print_help_and_exit(FILE *stream, int rc) {
 
 int main(int argc, char** argv) {
     int exit_status = 0;
-
-    /* see getopt(3) */
-    setenv("POSIXLY_CORRECT", "1", 0);
 
     int opt;
     while ((opt = getopt(argc, argv, ":d:Vh")) != -1) {

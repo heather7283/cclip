@@ -17,12 +17,12 @@
  */
 #include <stdio.h>
 #include <stdlib.h>
-#include <getopt.h>
 #include <string.h>
 
 #include "action_delete.h"
 #include "cclip.h"
 #include "utils.h"
+#include "getopt.h"
 
 static void print_help_and_exit(FILE *stream, int rc) {
     const char *help =
@@ -42,6 +42,7 @@ int action_delete(int argc, char** argv) {
     bool secure_delete = false;
 
     int opt;
+    optreset = 1;
     optind = 0;
     while ((opt = getopt(argc, argv, ":hs")) != -1) {
         switch (opt) {

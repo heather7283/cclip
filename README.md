@@ -97,8 +97,14 @@ cclipd -s 2
 ```
 Will only save entries size of which is greater than or equal to 2 bytes. This will prevent single ASCII characters from being saved, but will still allow mulitbyte unicode sequences like kanji or emojis.
 
+## License
+cclip is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+This repository includes a copy of xxhash, licensed under the BSD 2-Clause License, and modified getopt implementation taken from musl libc, licensed under the MIT License.
+
 ## Thanks
 - [cliphist](https://github.com/sentriz/cliphist) - for original idea and inspiration
 - [wayclip](https://git.sr.ht/~noocsharp/wayclip) - for showing how to work with wayland protocols
 - [sqlite3](https://sqlite.org/index.html) - for their fast and efficient database library
 - [meson](https://mesonbuild.com/) - for their amazing build system (I am never using make again)
+- [xxhash](https://xxhash.com/) - for their hashing library
+- [musl](https://musl.libc.org/) - for their getopt implementation

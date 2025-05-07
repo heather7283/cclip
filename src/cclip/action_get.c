@@ -15,7 +15,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-#include <getopt.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
@@ -25,6 +24,7 @@
 #include "action_get.h"
 #include "cclip.h"
 #include "utils.h"
+#include "getopt.h"
 
 static void print_help_and_exit(FILE *stream, int rc) {
     const char *help =
@@ -50,6 +50,7 @@ static int print_row(void* data, int argc, char** argv, char** column_names) {
 
 int action_get(int argc, char** argv) {
     int opt;
+    optreset = 1;
     optind = 0;
     while ((opt = getopt(argc, argv, ":h")) != -1) {
         switch (opt) {

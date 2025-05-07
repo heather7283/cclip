@@ -17,12 +17,12 @@
  */
 #include <stdio.h>
 #include <stdlib.h>
-#include <getopt.h>
 #include <string.h>
 #include <stdbool.h>
 
 #include "action_vacuum.h"
 #include "cclip.h"
+#include "getopt.h"
 
 static void print_help_and_exit(FILE *stream, int rc) {
     const char *help =
@@ -39,6 +39,7 @@ static void print_help_and_exit(FILE *stream, int rc) {
 
 int action_vacuum(int argc, char** argv) {
     int opt;
+    optreset = 1;
     optind = 0;
     while ((opt = getopt(argc, argv, ":h")) != -1) {
         switch (opt) {

@@ -29,6 +29,7 @@
 #include "db.h"
 #include "config.h"
 #include "xmalloc.h"
+#include "getopt.h"
 
 #define EPOLL_MAX_EVENTS 16
 
