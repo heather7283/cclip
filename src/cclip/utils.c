@@ -47,7 +47,7 @@ bool int64_from_stdin(int64_t* res) {
 }
 
 bool get_id(const char* str, int64_t* res) {
-    if (str == NULL) {
+    if (strcmp(str, "-") == 0) {
         return int64_from_stdin(res);
     } else {
         return str_to_int64(str, res);

@@ -81,7 +81,7 @@ int action_delete(int argc, char** argv) {
     }
 
     int64_t id;
-    if (!get_id((strcmp(id_str, "-") == 0) ? NULL : id_str, &id)) {
+    if (!get_id(id_str, &id)) {
         return 1;
     }
 
