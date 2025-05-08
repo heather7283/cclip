@@ -47,7 +47,7 @@ struct {
 static char offered_mime_types[MAX_OFFERED_MIME_TYPES][MAX_MIME_TYPE_LEN];
 static int offered_mime_types_count = 0;
 
-static const char* pick_mime_type(void) {
+static bool pick_mime_type(char pick[MAX_MIME_TYPE_LEN]) {
     /* finds first offered mime type that matches or returns NULL if none matched */
     for (int i = 0; i < config.accepted_mime_types_count; i++) {
         for (int j = 0; j < offered_mime_types_count; j++) {
@@ -56,12 +56,13 @@ static const char* pick_mime_type(void) {
 
             if (fnmatch(pattern, type, 0) == 0) {
                 log_print(DEBUG, "selected mime type: %s", type);
-                return type;
+                strcpy(pick, type);
+                return true;
             }
         }
     }
 
-    return NULL;
+    return false;
 }
 
 static size_t receive_data(int fd, char** buffer) {
@@ -96,11 +97,10 @@ static size_t receive_data(int fd, char** buffer) {
 }
 
 static void receive_offer(struct zwlr_data_control_offer_v1* offer) {
-    char* mime_type = NULL;
+    char mime_type[MAX_MIME_TYPE_LEN];
     char* buffer = NULL;
 
-    mime_type = xstrdup(pick_mime_type());
-    if (mime_type == NULL) {
+    if (!pick_mime_type(mime_type)) {
         log_print(DEBUG, "didn't match any mime type, not receiving this offer");
         goto out;
     }
@@ -137,7 +137,6 @@ static void receive_offer(struct zwlr_data_control_offer_v1* offer) {
     };
 
 out:
-    free(mime_type);
     free(buffer);
 }
 
