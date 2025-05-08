@@ -42,14 +42,14 @@ if get_option('man')
     subdir('man')
 endif
 
-private_code = custom_target('private_code',
+private_code = custom_target('wlr-data-control-unstable-v1-private-code',
     output: 'wlr-data-control-unstable-v1.c',
     input: 'protocol/wlr-data-control-unstable-v1.xml',
     command: [ wayland_scanner, 'private-code', '@INPUT@', '@OUTPUT@' ]
 )
 
-client_header = custom_target('client_header',
-    output: 'wlr-data-control-unstable-v1-client-protocol.h',
+client_header = custom_target('wlr-data-control-unstable-v1-client-header',
+    output: 'wlr-data-control-unstable-v1.h',
     input: 'protocol/wlr-data-control-unstable-v1.xml',
     command: [ wayland_scanner, 'client-header', '@INPUT@', '@OUTPUT@' ]
 )

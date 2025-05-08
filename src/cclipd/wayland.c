@@ -22,13 +22,13 @@
 #include <stdlib.h>
 #include <wayland-client.h>
 
-#include "wlr-data-control-unstable-v1-client-protocol.h"
 #include "wayland.h"
 #include "db.h"
 #include "preview.h"
 #include "config.h"
 #include "log.h"
 #include "xmalloc.h"
+#include "wlr-data-control-unstable-v1.h"
 
 struct {
     int fd;

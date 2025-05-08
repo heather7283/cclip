@@ -18,7 +18,6 @@
 #include <sys/signalfd.h>
 #include <sys/epoll.h>
 #include <string.h>
-#include <stdio.h>
 #include <unistd.h>
 #include <signal.h>
 #include <errno.h>

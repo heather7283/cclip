@@ -16,7 +16,6 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 #include <sys/wait.h>
-#include <limits.h>
 #include <unistd.h>
 #include <string.h>
 #include <errno.h>

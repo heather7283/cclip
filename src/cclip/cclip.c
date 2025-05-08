@@ -15,15 +15,10 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-#include <stdint.h>
 #include <string.h>
 #include <stdio.h>
-#include <stdbool.h>
-#include <unistd.h>
-#include <inttypes.h>
 #include <limits.h>
 #include <stdlib.h>
-#include <errno.h>
 
 #include "cclip.h"
 #include "action_list.h"
@@ -35,7 +30,6 @@
 #include "xmalloc.h"
 #include "getopt.h"
 
-const char* db_path = NULL;
 struct sqlite3* db = NULL;
 
 const char* get_default_db_path(void) {
@@ -90,6 +84,7 @@ void print_help_and_exit(FILE *stream, int rc) {
 
 int main(int argc, char** argv) {
     int exit_status = 0;
+    const char* db_path = NULL;
 
     int opt;
     while ((opt = getopt(argc, argv, ":d:Vh")) != -1) {
