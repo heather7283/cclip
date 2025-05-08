@@ -28,27 +28,10 @@
 #include "action_wipe.h"
 #include "action_vacuum.h"
 #include "xmalloc.h"
+#include "db_path.h"
 #include "getopt.h"
 
 struct sqlite3* db = NULL;
-
-const char* get_default_db_path(void) {
-    static char db_path[PATH_MAX];
-
-    char* xdg_data_home = getenv("XDG_DATA_HOME");
-    char* home = getenv("HOME");
-
-    if (xdg_data_home != NULL) {
-        snprintf(db_path, sizeof(db_path), "%s/cclip/db.sqlite3", xdg_data_home);
-    } else if (home != NULL) {
-        snprintf(db_path, sizeof(db_path), "%s/.local/share/cclip/db.sqlite3", home);
-    } else {
-        fprintf(stderr, "HOME and XDG_DATA_HOME are unset, unable to determine db file path\n");
-        return NULL;
-    }
-
-    return db_path;
-}
 
 void print_version_and_exit(void) {
     fprintf(stderr, "cclip version %s, branch %s, commit %s\n",
@@ -121,6 +104,11 @@ int main(int argc, char** argv) {
 
     if (db_path == NULL) {
         db_path = get_default_db_path();
+    }
+    if (db_path == NULL) {
+        fprintf(stderr, "failed to determine db path, both HOME and XDG_DATA_HOME are unset\n");
+        exit_status = 1;
+        goto cleanup;
     }
 
     int ret;

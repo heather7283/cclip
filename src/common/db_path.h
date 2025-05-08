@@ -15,28 +15,10 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-#ifndef CONFIG_H
-#define CONFIG_H
+#ifndef SRC_COMMON_DB_PATH_H
+#define SRC_COMMON_DB_PATH_H
 
-#include <stdbool.h>
-#include <stddef.h>
+const char* get_default_db_path(void);
 
-#include "log.h"
-
-#define MAX_ACCEPTED_MIME_TYPES 64
-struct config {
-    int accepted_mime_types_count;
-    char* accepted_mime_types[MAX_ACCEPTED_MIME_TYPES];
-    size_t min_data_size;
-    const char* db_path;
-    bool primary_selection;
-    int max_entries_count;
-    bool create_db_if_not_exists;
-    size_t preview_len;
-    enum loglevel loglevel;
-};
-
-extern struct config config;
-
-#endif /* #ifndef CONFIG_H */
+#endif /* #ifndef SRC_COMMON_DB_PATH_H */
 

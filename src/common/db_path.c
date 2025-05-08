@@ -15,28 +15,25 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-#ifndef CONFIG_H
-#define CONFIG_H
+#include <stdlib.h>
+#include <limits.h>
+#include <stdio.h>
 
-#include <stdbool.h>
-#include <stddef.h>
+#include "db_path.h"
 
-#include "log.h"
+const char* get_default_db_path(void) {
+    static char db_path[PATH_MAX];
 
-#define MAX_ACCEPTED_MIME_TYPES 64
-struct config {
-    int accepted_mime_types_count;
-    char* accepted_mime_types[MAX_ACCEPTED_MIME_TYPES];
-    size_t min_data_size;
-    const char* db_path;
-    bool primary_selection;
-    int max_entries_count;
-    bool create_db_if_not_exists;
-    size_t preview_len;
-    enum loglevel loglevel;
-};
+    const char* xdg_data_home = getenv("XDG_DATA_HOME");
+    const char* home = getenv("HOME");
 
-extern struct config config;
+    if (xdg_data_home != NULL) {
+        snprintf(db_path, sizeof(db_path), "%s/cclip/db.sqlite3", xdg_data_home);
+    } else if (home != NULL) {
+        snprintf(db_path, sizeof(db_path), "%s/.local/share/cclip/db.sqlite3", home);
+    } else {
+        return NULL;
+    }
 
-#endif /* #ifndef CONFIG_H */
-
+    return db_path;
+}

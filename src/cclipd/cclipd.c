@@ -28,6 +28,7 @@
 #include "db.h"
 #include "config.h"
 #include "xmalloc.h"
+#include "db_path.h"
 #include "getopt.h"
 
 #define EPOLL_MAX_EVENTS 16
@@ -149,6 +150,7 @@ int main(int argc, char** argv) {
         config.db_path = get_default_db_path();
     }
     if (config.db_path == NULL) {
+        log_print(ERR, "failed to determine db file path, both HOME and XDG_DATA_HOME are unset");
         exit_status = 1;
         goto cleanup;
     }
