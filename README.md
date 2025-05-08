@@ -13,6 +13,7 @@ cclip was heavily inspired by [cliphist](https://github.com/sentriz/cliphist) an
 - Easily integrateble into scripts
 - Preserves clipboard content byte-to-byte (doesn't insert extra newlines, strip whitespace, etc)
 - Supports text, images, and any other MIME type, really
+- Lets you add custom tags to clipboard entries
 - Blazingly fa.. oh nvm I can't say that, it's written in C
 
 ## Installation
@@ -21,7 +22,6 @@ cclip was heavily inspired by [cliphist](https://github.com/sentriz/cliphist) an
 ## Building
 > [!NOTE]
 > Make sure you have **libwayland-client**, **libsqlite3** and **wayland-scanner** installed before proceeding.
-> You will also need **scdoc** if you want to build man pages.
 
 cclip uses meson build system. To build cclip locally:
 ```
