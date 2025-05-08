@@ -23,6 +23,8 @@
 #include <sqlite3.h>
 
 #include "db.h"
+#include "config.h"
+#include "preview.h"
 #include "log.h"
 #include "xxhash.h"
 
@@ -187,31 +189,36 @@ int db_cleanup(void) {
     return 0;
 }
 
-int insert_db_entry(const struct db_entry* const entry, int max_entries_count) {
+int insert_db_entry(const void* data, size_t data_size, const char* mime) {
     int rc = 0;
+    char* preview = NULL;
 
-    uint64_t data_hash = XXH3_64bits(entry->data, entry->data_size);
+    uint64_t data_hash = XXH3_64bits(data, data_size);
     log_print(TRACE, "entry hash: %016lX", data_hash);
+
+    time_t timestamp = time(NULL);
+
+    preview = generate_preview(data, data_size, mime);
 
     /* transaction */
     log_print(TRACE, "beginning transaction");
+    sqlite3_reset(statements[STMT_BEGIN]);
     rc = sqlite3_step(statements[STMT_BEGIN]);
     if (rc != SQLITE_DONE) {
         log_print(ERR, "sql: failed to begin transaction: %s", sqlite3_errmsg(db));
-        return -1;
+        goto out;
     }
-    sqlite3_reset(statements[STMT_BEGIN]);
 
     /* insert */
-    sqlite3_bind_blob(statements[STMT_INSERT], DATA_LOCATION,
-                      entry->data, entry->data_size, SQLITE_STATIC);
+    sqlite3_reset(statements[STMT_INSERT]);
+    sqlite3_clear_bindings(statements[STMT_INSERT]);
+
+    sqlite3_bind_blob(statements[STMT_INSERT], DATA_LOCATION, data, data_size, SQLITE_STATIC);
     sqlite3_bind_int64(statements[STMT_INSERT], DATA_HASH_LOCATION, *(int64_t *)&data_hash);
-    sqlite3_bind_int64(statements[STMT_INSERT], DATA_SIZE_LOCATION, entry->data_size);
-    sqlite3_bind_text(statements[STMT_INSERT], PREVIEW_LOCATION,
-                      entry->preview, -1, SQLITE_STATIC);
-    sqlite3_bind_text(statements[STMT_INSERT], MIME_TYPE_LOCATION,
-                      entry->mime_type, -1, SQLITE_STATIC);
-    sqlite3_bind_int64(statements[STMT_INSERT], TIMESTAMP_LOCATION, entry->timestamp);
+    sqlite3_bind_int64(statements[STMT_INSERT], DATA_SIZE_LOCATION, data_size);
+    sqlite3_bind_text(statements[STMT_INSERT], PREVIEW_LOCATION, preview, -1, SQLITE_STATIC);
+    sqlite3_bind_text(statements[STMT_INSERT], MIME_TYPE_LOCATION, mime, -1, SQLITE_STATIC);
+    sqlite3_bind_int64(statements[STMT_INSERT], TIMESTAMP_LOCATION, timestamp);
 
     rc = sqlite3_step(statements[STMT_INSERT]);
     if (rc != SQLITE_DONE) {
@@ -220,40 +227,40 @@ int insert_db_entry(const struct db_entry* const entry, int max_entries_count) {
     }
     log_print(DEBUG, "record inserted successfully");
 
-    sqlite3_reset(statements[STMT_INSERT]);
-    sqlite3_clear_bindings(statements[STMT_INSERT]);
-
     /* delete oldest entries above the limit */
-    if (max_entries_count > 0) {
-        sqlite3_bind_int(statements[STMT_DELETE_OLDEST], 1, max_entries_count);
+    if (config.max_entries_count > 0) {
+        sqlite3_reset(statements[STMT_DELETE_OLDEST]);
+        sqlite3_clear_bindings(statements[STMT_DELETE_OLDEST]);
+
+        sqlite3_bind_int(statements[STMT_DELETE_OLDEST], 1, config.max_entries_count);
 
         rc = sqlite3_step(statements[STMT_DELETE_OLDEST]);
         if (rc != SQLITE_DONE) {
             log_print(ERR, "sql: failed to delete oldest entries: %s", sqlite3_errmsg(db));
-            return -1;
+            goto rollback;
         }
-
-        sqlite3_reset(statements[STMT_DELETE_OLDEST]);
-        sqlite3_clear_bindings(statements[STMT_DELETE_OLDEST]);
     }
 
     /* commit transaction */
     log_print(TRACE, "ending transaction");
+    sqlite3_reset(statements[STMT_COMMIT]);
     rc = sqlite3_step(statements[STMT_COMMIT]);
     if (rc != SQLITE_DONE) {
         log_print(ERR, "sql: failed to commit transaction: %s", sqlite3_errmsg(db));
         goto rollback;
     }
-    sqlite3_reset(statements[STMT_COMMIT]);
 
+out:
+    free(preview);
     return 0;
 
 rollback:
+    free(preview);
+    sqlite3_reset(statements[STMT_ROLLBACK]);
     rc = sqlite3_step(statements[STMT_ROLLBACK]);
     if (rc != SQLITE_DONE) {
         log_print(ERR, "sql: failed to rollback transaction: %s", sqlite3_errmsg(db));
     }
-    sqlite3_reset(statements[STMT_ROLLBACK]);
     return -1;
 }
 

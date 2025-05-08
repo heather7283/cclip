@@ -24,7 +24,6 @@
 
 #include "wayland.h"
 #include "db.h"
-#include "preview.h"
 #include "config.h"
 #include "log.h"
 #include "xmalloc.h"
@@ -99,7 +98,6 @@ static size_t receive_data(int fd, char** buffer) {
 static void receive_offer(struct zwlr_data_control_offer_v1* offer) {
     char* mime_type = NULL;
     char* buffer = NULL;
-    struct db_entry new_entry = {0};
 
     mime_type = xstrdup(pick_mime_type());
     if (mime_type == NULL) {
@@ -134,22 +132,13 @@ static void receive_offer(struct zwlr_data_control_offer_v1* offer) {
         goto out;
     }
 
-    time_t timestamp = time(NULL);
-
-    new_entry.data = buffer;
-    new_entry.data_size = bytes_read;
-    new_entry.mime_type = mime_type;
-    new_entry.timestamp = timestamp;
-    new_entry.preview = generate_preview(buffer, config.preview_len, bytes_read, mime_type);
-
-    if (insert_db_entry(&new_entry, config.max_entries_count) < 0) {
+    if (insert_db_entry(buffer, bytes_read, mime_type) < 0) {
         log_print(ERR, "failed to insert entry into database!");
     };
 
 out:
     free(mime_type);
     free(buffer);
-    free(new_entry.preview);
 }
 
 static void mime_type_offer_handler(void* data, struct zwlr_data_control_offer_v1* offer,

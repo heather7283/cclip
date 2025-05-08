@@ -20,6 +20,7 @@
 #include <inttypes.h>
 
 #include "preview.h"
+#include "config.h"
 #include "log.h"
 #include "xmalloc.h"
 
@@ -139,14 +140,13 @@ static void generate_binary_preview(char* const out_buf, size_t preview_len,
     }
 }
 
-char* generate_preview(const void* const data, size_t preview_len,
-                       size_t data_size, const char* const mime_type) {
-    char* preview = xcalloc(preview_len, sizeof(char));
+char* generate_preview(const void* const data, size_t data_size, const char* const mime_type) {
+    char* preview = xcalloc(config.preview_len, sizeof(char));
 
     if (fnmatch("text/*", mime_type, 0) == 0) {
-        generate_text_preview(preview, data, preview_len, data_size);
+        generate_text_preview(preview, data, config.preview_len, data_size);
     } else {
-        generate_binary_preview(preview, preview_len, data_size, mime_type);
+        generate_binary_preview(preview, config.preview_len, data_size, mime_type);
     }
 
     log_print(DEBUG, "generated preview: %s", preview);

@@ -34,7 +34,7 @@ struct db_entry {
 int db_cleanup(void);
 int db_init(const char* const db_path, bool create_if_not_exists);
 
-int insert_db_entry(const struct db_entry* const entry, int max_entries_count);
+int insert_db_entry(const void* data, size_t data_size, const char* mime);
 
 #endif /* #ifndef DB_H */
 
