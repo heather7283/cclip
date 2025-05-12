@@ -18,6 +18,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 
 #include "action_tag.h"
 #include "cclip.h"
@@ -99,6 +100,18 @@ int action_tag(int argc, char** argv) {
 
     int64_t id;
     if (!get_id(id_str, &id)) {
+        return 1;
+    }
+
+    bool tag_str_valid = false;
+    for (const char *p = tag_str; *p != '\0'; p++) {
+        if (!isspace(*p)) {
+            tag_str_valid = true;
+            break;
+        }
+    }
+    if (!tag_str_valid) {
+        fprintf(stderr, "tag cannot be empty or contain only whitespace\n");
         return 1;
     }
 
