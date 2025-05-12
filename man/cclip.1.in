@@ -38,17 +38,17 @@ Output format can be controlled by specifying list of comma-separated fields as 
 Available fields are rowid, preview, mime_type, data_size, timestamp, tag; \
 default is rowid,mime_type,preview.
 .TP 4
-.B get \fPID [\fIFIELDS\fP]
+.B get \fP\fIID\fP [\fIFIELDS\fP]
 Print saved clipboard entry with specified id to stdout. \
 If id is -, read it from stdin. If FIELDS specified, it is treated the same way as in \fBlist\fP.
 .TP 4
-.B delete \fP[-s] ID
+.B delete \fP[-s] \fIID\fP
 Delete entry with specified id from database. If id is -, read it from stdin. \
 If -s is specified, enable secure delete sqlite pragma.
 .PP
-.B tag \fPID TAG
+.B tag \fP\fIID\fP \fITAG\fP
 .br
-.B tag \fP-d ID
+.B tag \fP-d \fIID\fP
 .RS 4
 In the first form, add a tag specified as TAG to entry with specified id. \
 In the second form, remove a tag from entry with specified id. If id is -, read it from stdin.
