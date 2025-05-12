@@ -103,16 +103,18 @@ int action_tag(int argc, char** argv) {
         return 1;
     }
 
-    bool tag_str_valid = false;
-    for (const char *p = tag_str; *p != '\0'; p++) {
-        if (!isspace(*p)) {
-            tag_str_valid = true;
-            break;
+    if (tag_str != NULL) {
+        bool tag_str_valid = false;
+        for (const char *p = tag_str; *p != '\0'; p++) {
+            if (!isspace(*p)) {
+                tag_str_valid = true;
+                break;
+            }
         }
-    }
-    if (!tag_str_valid) {
-        fprintf(stderr, "tag cannot be empty or contain only whitespace\n");
-        return 1;
+        if (!tag_str_valid) {
+            fprintf(stderr, "tag cannot be empty or contain only whitespace\n");
+            return 1;
+        }
     }
 
     const char* sql = "UPDATE history SET tag = ? WHERE rowid = ?";
