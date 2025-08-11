@@ -1,7 +1,7 @@
 # cclip - clipboard manager for wayland
 ## Overview
 cclip is a set of two tools:
-- cclipd daemon runs in the background, monitors wayland clipboard for changes and writes clibpoard content to a database
+- cclipd daemon runs in the background, monitors wayland clipboard for changes and writes clipboard content to a database
 - cclip is a CLI tools for interacting with the database created by cclipd
 
 cclip was heavily inspired by [cliphist](https://github.com/sentriz/cliphist) and attempts to fix some issues cliphist has.
