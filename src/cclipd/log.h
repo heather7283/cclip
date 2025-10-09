@@ -15,8 +15,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-#ifndef CCLIP_LOG_H
-#define CCLIP_LOG_H
+
+#pragma once
 
 #include <stdio.h>
 
@@ -32,6 +32,4 @@ enum loglevel {
 
 void log_init(FILE *stream, enum loglevel level);
 void log_print(enum loglevel level, const char* fmt, ...);
-
-#endif /* #ifndef CCLIP_LOG_H */
 

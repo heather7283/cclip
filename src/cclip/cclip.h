@@ -15,12 +15,10 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-#ifndef CCLIP_CCLIP_H
-#define CCLIP_CCLIP_H
+
+#pragma once
 
 #include <sqlite3.h>
 
 extern struct sqlite3* db;
-
-#endif /* #ifndef CCLIP_CCLIP_H */
 

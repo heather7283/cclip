@@ -15,13 +15,11 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-#ifndef CCLIP_ACTION_GET_H
-#define CCLIP_ACTION_GET_H
+
+#pragma once
 
 /*
  * get ID [ROWS]
  */
 int action_get(int argc, char** argv);
-
-#endif /* #ifndef CCLIP_ACTION_GET_H */
 

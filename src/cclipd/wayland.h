@@ -15,12 +15,10 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-#ifndef WAYLAND_H
-#define WAYLAND_H
+
+#pragma once
 
 int wayland_init(void);
 void wayland_cleanup(void);
 int wayland_process_events(void);
-
-#endif /* #ifndef WAYLAND_H */
 

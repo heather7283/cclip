@@ -15,8 +15,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-#ifndef CONFIG_H
-#define CONFIG_H
+
+#pragma once
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -37,6 +37,4 @@ struct config {
 };
 
 extern struct config config;
-
-#endif /* #ifndef CONFIG_H */
 

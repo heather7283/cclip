@@ -15,8 +15,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-#ifndef CCLIP_UTILS_H
-#define CCLIP_UTILS_H
+
+#pragma once
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -30,6 +30,4 @@ bool get_id(const char* str, int64_t* res);
 
 #define MAX_FIELD_LIST_SIZE 1024
 const char* build_field_list(char* raw_list);
-
-#endif /* #ifndef CCLIP_UTILS_H */
 

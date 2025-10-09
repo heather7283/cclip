@@ -15,8 +15,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-#ifndef XMALLOC_H
-#define XMALLOC_H
+
+#pragma once
 
 #include <stddef.h>
 
@@ -29,6 +29,4 @@ void* xrealloc(void* ptr, size_t size);
 
 /* strdup, but aborts on alloc fail and returns NULL when called with NULL */
 char* xstrdup(const char* s);
-
-#endif /* #ifndef XMALLOC_H */
 

@@ -15,13 +15,11 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-#ifndef CCLIP_ACTION_DELETE_H
-#define CCLIP_ACTION_DELETE_H
+
+#pragma once
 
 /*
  * delete ID
  */
 int action_delete(int argc, char** argv);
-
-#endif /* #ifndef CCLIP_ACTION_DELETE_H */
 

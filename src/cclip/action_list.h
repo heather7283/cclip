@@ -15,13 +15,11 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-#ifndef CCLIP_ACTION_LIST_H
-#define CCLIP_ACTION_LIST_H
+
+#pragma once
 
 /*
  * list [-t] ROWS
  */
 int action_list(int argc, char** argv);
-
-#endif /* #ifndef CCLIP_ACTION_LIST_H */
 
