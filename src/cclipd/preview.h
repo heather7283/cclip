@@ -15,12 +15,10 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-#ifndef PREVIEW_H
-#define PREVIEW_H
+
+#pragma once
 
 #include <stddef.h>
 
 char* generate_preview(const void* const data, size_t data_size, const char* const mime_type);
-
-#endif /* #ifndef PREVIEW_H */
 

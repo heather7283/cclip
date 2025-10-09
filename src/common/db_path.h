@@ -15,10 +15,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-#ifndef SRC_COMMON_DB_PATH_H
-#define SRC_COMMON_DB_PATH_H
+
+#pragma once
 
 const char* get_default_db_path(void);
-
-#endif /* #ifndef SRC_COMMON_DB_PATH_H */
 
