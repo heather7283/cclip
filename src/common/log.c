@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 #include <stdarg.h>
 
 #include "log.h"
@@ -43,20 +44,19 @@ void log_print(enum loglevel level, const char* fmt, ...) {
     case LOGLEVEL_SILENT:
         return;
     case ERR:
-        fprintf(log_config.stream, "[X] ");
+        fprintf(log_config.stream, "error: ");
         break;
     case WARN:
-        fprintf(log_config.stream, "[!] ");
+        fprintf(log_config.stream, "warning: ");
         break;
     case INFO:
-        fprintf(log_config.stream, "[i] ");
+        fprintf(log_config.stream, "info: ");
         break;
     case DEBUG:
-        fprintf(log_config.stream, "[D] ");
+        fprintf(log_config.stream, "debug: ");
         break;
-    case TRACE:
-    case LOGLEVEL_MAX:
-        fprintf(log_config.stream, "[T] ");
+    default:
+        fprintf(log_config.stream, "trace: ");
         break;
     }
 

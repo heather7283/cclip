@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 #include <string.h>
 #include <stdio.h>
 #include <limits.h>
@@ -30,6 +31,7 @@
 #include "xmalloc.h"
 #include "db_path.h"
 #include "getopt.h"
+#include "log.h"
 
 struct sqlite3* db = NULL;
 
@@ -68,12 +70,16 @@ void print_help_and_exit(FILE *stream, int rc) {
 int main(int argc, char** argv) {
     int exit_status = 0;
     const char* db_path = NULL;
+    enum loglevel loglevel = WARN;
 
     int opt;
-    while ((opt = getopt(argc, argv, ":d:Vh")) != -1) {
+    while ((opt = getopt(argc, argv, ":d:vVh")) != -1) {
         switch (opt) {
         case 'd':
             db_path = xstrdup(optarg);
+            break;
+        case 'v':
+            loglevel += 1;
             break;
         case 'V':
             print_version_and_exit();
@@ -82,38 +88,39 @@ int main(int argc, char** argv) {
             print_help_and_exit(stdout, 0);
             break;
         case '?':
-            fprintf(stderr, "unknown option: %c\n\n", optopt);
-            print_help_and_exit(stderr, 1);
+            log_print(ERR, "unknown option: %c", optopt);
             break;
         case ':':
-            fprintf(stderr, "missing arg for %c\n\n", optopt);
-            print_help_and_exit(stderr, 1);
+            log_print(ERR, "missing arg for %c", optopt);
             break;
         default:
-            fprintf(stderr, "error while parsing command line options\n\n");
-            print_help_and_exit(stderr, 1);
+            log_print(ERR, "error while parsing command line options");
             break;
         }
     }
+
+    log_init(stderr, loglevel);
+
     argc = argc - optind;
     argv = &argv[optind];
     if (argc < 1) {
-        fprintf(stderr, "no action provided\n\n");
-        print_help_and_exit(stderr, 1);
+        log_print(ERR, "no action provided");
+        exit_status = 1;
+        goto cleanup;
     }
 
     if (db_path == NULL) {
         db_path = get_default_db_path();
     }
     if (db_path == NULL) {
-        fprintf(stderr, "failed to determine db path, both HOME and XDG_DATA_HOME are unset\n");
+        log_print(ERR, "failed to determine db path, both HOME and XDG_DATA_HOME are unset");
         exit_status = 1;
         goto cleanup;
     }
 
     int ret;
     if ((ret = sqlite3_open(db_path, &db)) != SQLITE_OK) {
-        fprintf(stderr, "sqlite error: %s\n", sqlite3_errstr(ret));
+        log_print(ERR, "failed to open database: %s", sqlite3_errstr(ret));
         exit_status = 1;
         goto cleanup;
     }
@@ -131,7 +138,7 @@ int main(int argc, char** argv) {
     } else if (strcmp(argv[0], "vacuum") == 0) {
         exit_status = action_vacuum(argc, argv);
     } else {
-        fprintf(stderr, "invalid action: %s\n", argv[0]);
+        log_print(ERR, "invalid action: %s", argv[0]);
         exit_status = 1;
         goto cleanup;
     }

@@ -15,12 +15,14 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 #include <stdio.h>
 #include <stdlib.h>
 
 #include "action_vacuum.h"
 #include "cclip.h"
 #include "getopt.h"
+#include "log.h"
 
 static void print_help_and_exit(FILE *stream, int rc) {
     const char *help =
@@ -45,16 +47,13 @@ int action_vacuum(int argc, char** argv) {
             print_help_and_exit(stdout, 0);
             break;
         case '?':
-            fprintf(stderr, "unknown option: %c\n\n", optopt);
-            print_help_and_exit(stderr, 1);
+            log_print(ERR, "unknown option: %c", optopt);
             break;
         case ':':
-            fprintf(stderr, "missing arg for %c\n\n", optopt);
-            print_help_and_exit(stderr, 1);
+            log_print(ERR, "missing arg for %c", optopt);
             break;
         default:
-            fprintf(stderr, "error while parsing command line options\n\n");
-            print_help_and_exit(stderr, 1);
+            log_print(ERR, "error while parsing command line options");
             break;
         }
     }
@@ -62,7 +61,7 @@ int action_vacuum(int argc, char** argv) {
     argv = &argv[optind];
 
     if (argc > 0) {
-        fprintf(stderr, "extra arguments on the command line\n");
+        log_print(ERR, "extra arguments on the command line");
         return 1;
     }
 
@@ -70,7 +69,7 @@ int action_vacuum(int argc, char** argv) {
 
     char* errmsg;
     if (sqlite3_exec(db, sql, NULL, NULL, &errmsg) != SQLITE_OK) {
-        fprintf(stderr, "sqlite error: %s\n", errmsg);
+        log_print(ERR, "sqlite error: %s", errmsg);
         return 1;
     }
 
