@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -23,6 +24,7 @@
 #include "cclip.h"
 #include "utils.h"
 #include "getopt.h"
+#include "log.h"
 
 static void print_help_and_exit(FILE *stream, int rc) {
     const char *help =
@@ -53,16 +55,13 @@ int action_delete(int argc, char** argv) {
             print_help_and_exit(stdout, 0);
             break;
         case '?':
-            fprintf(stderr, "unknown option: %c\n\n", optopt);
-            print_help_and_exit(stderr, 1);
+            log_print(ERR, "unknown option: %c", optopt);
             break;
         case ':':
-            fprintf(stderr, "missing arg for %c\n\n", optopt);
-            print_help_and_exit(stderr, 1);
+            log_print(ERR, "missing arg for %c", optopt);
             break;
         default:
-            fprintf(stderr, "error while parsing command line options\n\n");
-            print_help_and_exit(stderr, 1);
+            log_print(ERR, "error while parsing command line options");
             break;
         }
     }
@@ -71,12 +70,12 @@ int action_delete(int argc, char** argv) {
 
     char* id_str;
     if (argc < 1) {
-        fprintf(stderr, "not enough arguments\n");
+        log_print(ERR, "not enough arguments");
         return 1;
     } else if (argc == 1) {
         id_str = argv[0];
     }  else {
-        fprintf(stderr, "extra arguments on the command line\n");
+        log_print(ERR, "extra arguments on the command line");
         return 1;
     }
 
@@ -89,7 +88,7 @@ int action_delete(int argc, char** argv) {
         char* errmsg;
         int ret = sqlite3_exec(db, "PRAGMA secure_delete = 1", NULL, NULL, &errmsg);
         if (ret != SQLITE_OK) {
-            fprintf(stderr, "sqlite error: %s\n", errmsg);
+            log_print(ERR, "failed to enable secure delete: %s", errmsg);
             return 1;
         }
     }
@@ -99,7 +98,7 @@ int action_delete(int argc, char** argv) {
     sqlite3_stmt* stmt;
     int ret = sqlite3_prepare(db, sql, -1, &stmt, NULL);
     if (ret != SQLITE_OK) {
-        fprintf(stderr, "sqlite error: %s\n", sqlite3_errmsg(db));
+        log_print(ERR, "failed to prepare statement: %s", sqlite3_errmsg(db));
         return 1;
     }
 
@@ -108,11 +107,11 @@ int action_delete(int argc, char** argv) {
     ret = sqlite3_step(stmt);
     if (ret == SQLITE_DONE) {
         if (sqlite3_changes(db) == 0) {
-            fprintf(stderr, "table was not modified, does id %li exist?\n", id);
+            log_print(ERR, "table was not modified, does id %li exist?", id);
             return 1;
         }
     } else {
-        fprintf(stderr, "sqlite error: %s\n", sqlite3_errmsg(db));
+        log_print(ERR, "sqlite error: %s", sqlite3_errmsg(db));
         return 1;
     }
 

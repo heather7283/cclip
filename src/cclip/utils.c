@@ -15,12 +15,14 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "utils.h"
+#include "log.h"
 
 bool str_to_int64(const char* str, int64_t* res) {
     char *endptr = NULL;
@@ -32,14 +34,14 @@ bool str_to_int64(const char* str, int64_t* res) {
         *res = res_tmp;
         return true;
     }
-    fprintf(stderr, "failed to convert %s to int64\n", str);
+    log_print(ERR, "failed to convert %s to int64", str);
     return false;
 }
 
 bool int64_from_stdin(int64_t* res) {
     int64_t res_tmp;
     if (scanf("%ld", &res_tmp) != 1) {
-        fprintf(stderr, "failed to read a number from stdin\n");
+        log_print(ERR, "failed to read a number from stdin");
         return false;
     };
     *res = res_tmp;
@@ -111,7 +113,7 @@ const char* build_field_list(char* raw_list) {
                     result_pos = stpecpy(result_pos, result_end, allowed_fields[i][0]);
                     result_pos = stpecpy(result_pos, result_end, ",");
                     if (result_pos == NULL) {
-                        fprintf(stderr, "field list is too long\n");
+                        log_print(ERR, "field list is too long");
                         return NULL;
                     }
 
@@ -123,7 +125,7 @@ const char* build_field_list(char* raw_list) {
     loop_out:
 
         if (!token_valid) {
-            fprintf(stderr, "invalid field: %s\n", token);
+            log_print(ERR, "invalid field: %s", token);
             return NULL;
         }
 
