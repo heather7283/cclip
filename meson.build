@@ -55,14 +55,23 @@ client_header = custom_target('wlr-data-control-unstable-v1-client-header',
 )
 
 xxhash_lib = static_library('xxhash', 'thirdparty/xxhash/xxhash.c')
+getopt_lib = static_library('getopt', 'thirdparty/getopt/getopt.c')
 
-include_dirs = [
-  'thirdparty/xxhash',
-  'thirdparty/getopt',
-  'src/common'
-]
+include_dirs = include_directories([
+    'thirdparty/xxhash',
+    'thirdparty/getopt',
+    'src/common'
+])
 
-executable('cclip',
+wayland_sources = [ private_code, client_header ]
+
+common_sources = files([
+    'src/common/log.c',
+    'src/common/xmalloc.c',
+    'src/common/db_path.c',
+])
+
+cclip_sources = files([
     'src/cclip/cclip.c',
     'src/cclip/utils.c',
     'src/cclip/action_list.c',
@@ -71,29 +80,26 @@ executable('cclip',
     'src/cclip/action_delete.c',
     'src/cclip/action_wipe.c',
     'src/cclip/action_vacuum.c',
-    'src/common/log.c',
-    'src/common/xmalloc.c',
-    'src/common/db_path.c',
-    'thirdparty/getopt/getopt.c',
-    include_directories: include_dirs,
-    dependencies: [ sqlite3_dep ],
-    install: true
-)
+])
 
-executable('cclipd',
+cclipd_sources = files([
     'src/cclipd/cclipd.c',
     'src/cclipd/db.c',
     'src/cclipd/wayland.c',
     'src/cclipd/preview.c',
     'src/cclipd/config.c',
-    'src/common/log.c',
-    'src/common/xmalloc.c',
-    'src/common/db_path.c',
-    'thirdparty/getopt/getopt.c',
-    private_code,
-    client_header,
+])
+
+executable('cclip', cclip_sources + common_sources,
     include_directories: include_dirs,
-    link_with: [ xxhash_lib ],
+    link_with: [ getopt_lib ],
+    dependencies: [ sqlite3_dep ],
+    install: true
+)
+
+executable('cclipd', cclipd_sources + common_sources + wayland_sources,
+    include_directories: include_dirs,
+    link_with: [ xxhash_lib, getopt_lib ],
     dependencies: [ sqlite3_dep, wayland_client_dep ],
     install: true
 )
