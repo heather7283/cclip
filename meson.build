@@ -28,8 +28,6 @@ if git_branch == ''
 endif
 add_project_arguments('-DCCLIP_GIT_BRANCH="@0@"'.format(git_branch), language: 'c')
 
-wayland_scanner = find_program('wayland-scanner')
-
 static_link = get_option('static')
 if static_link
     add_project_link_arguments('-static', language: 'c')
@@ -42,17 +40,7 @@ if get_option('man')
     subdir('man')
 endif
 
-private_code = custom_target('wlr-data-control-unstable-v1-private-code',
-    output: 'wlr-data-control-unstable-v1.c',
-    input: 'protocol/wlr-data-control-unstable-v1.xml',
-    command: [ wayland_scanner, 'private-code', '@INPUT@', '@OUTPUT@' ]
-)
-
-client_header = custom_target('wlr-data-control-unstable-v1-client-header',
-    output: 'wlr-data-control-unstable-v1.h',
-    input: 'protocol/wlr-data-control-unstable-v1.xml',
-    command: [ wayland_scanner, 'client-header', '@INPUT@', '@OUTPUT@' ]
-)
+subdir('protocol')
 
 xxhash_lib = static_library('xxhash', 'thirdparty/xxhash/xxhash.c')
 getopt_lib = static_library('getopt', 'thirdparty/getopt/getopt.c')
@@ -62,8 +50,6 @@ include_dirs = include_directories([
     'thirdparty/getopt',
     'src/common'
 ])
-
-wayland_sources = [ private_code, client_header ]
 
 common_sources = files([
     'src/common/log.c',
@@ -97,7 +83,7 @@ executable('cclip', cclip_sources + common_sources,
     install: true
 )
 
-executable('cclipd', cclipd_sources + common_sources + wayland_sources,
+executable('cclipd', cclipd_sources + common_sources + proto_sources,
     include_directories: include_dirs,
     link_with: [ xxhash_lib, getopt_lib ],
     dependencies: [ sqlite3_dep, wayland_client_dep ],
