@@ -27,11 +27,10 @@
 #include "cclipd.h"
 #include "wayland.h"
 #include "log.h"
-#include "db_utils.h"
+#include "db.h"
 #include "sql.h"
 #include "config.h"
 #include "xmalloc.h"
-#include "db_path.h"
 #include "getopt.h"
 
 struct sqlite3* db = NULL;
@@ -161,15 +160,6 @@ int main(int argc, char** argv) {
     };
 
     log_init(stderr, config.loglevel);
-
-    if (config.db_path == NULL) {
-        config.db_path = get_default_db_path();
-    }
-    if (config.db_path == NULL) {
-        log_print(ERR, "failed to determine db file path, both HOME and XDG_DATA_HOME are unset");
-        exit_status = 1;
-        goto cleanup;
-    }
 
     if (config.accepted_mime_types_count == 0) {
         config.accepted_mime_types[0] = xstrdup("*");

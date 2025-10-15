@@ -54,8 +54,7 @@ include_dirs = include_directories([
 common_sources = files([
     'src/common/log.c',
     'src/common/xmalloc.c',
-    'src/common/db_path.c',
-    'src/common/db_utils.c',
+    'src/common/db.c',
 ])
 
 cclip_sources = files([

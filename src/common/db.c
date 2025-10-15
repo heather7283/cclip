@@ -24,7 +24,7 @@
 #include <errno.h>
 #include <stdio.h>
 
-#include "db_utils.h"
+#include "db.h"
 #include "macros.h"
 #include "log.h"
 

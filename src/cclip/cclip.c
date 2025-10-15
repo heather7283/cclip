@@ -29,7 +29,7 @@
 #include "action_wipe.h"
 #include "action_vacuum.h"
 #include "xmalloc.h"
-#include "db_path.h"
+#include "db.h"
 #include "getopt.h"
 #include "log.h"
 
@@ -109,21 +109,12 @@ int main(int argc, char** argv) {
         goto cleanup;
     }
 
-    if (db_path == NULL) {
-        db_path = get_default_db_path();
-    }
-    if (db_path == NULL) {
-        log_print(ERR, "failed to determine db path, both HOME and XDG_DATA_HOME are unset");
+    db = db_open(db_path, false);
+    if (db == NULL) {
+        log_print(ERR, "failed to open database");
         exit_status = 1;
         goto cleanup;
-    }
-
-    int ret;
-    if ((ret = sqlite3_open(db_path, &db)) != SQLITE_OK) {
-        log_print(ERR, "failed to open database: %s", sqlite3_errstr(ret));
-        exit_status = 1;
-        goto cleanup;
-    }
+    };
 
     if (strcmp(argv[0], "list") == 0) {
         exit_status = action_list(argc, argv);
