@@ -20,6 +20,8 @@
 
 #define SIZEOF_ARRAY(arr) (sizeof(arr) / sizeof(arr[0]))
 
+#define TOSTRING(...) #__VA_ARGS__
+
 #define STREQ(a, b) (strcmp((a), (b)) == 0)
 #define STRNEQ(a, b, len) (strncmp((a), (b), (len)) == 0)
 

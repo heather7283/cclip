@@ -15,25 +15,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-#include <stdlib.h>
-#include <limits.h>
-#include <stdio.h>
 
-#include "db_path.h"
+#pragma once
 
-const char* get_default_db_path(void) {
-    static char db_path[PATH_MAX];
+extern struct sqlite3* db;
 
-    const char* xdg_data_home = getenv("XDG_DATA_HOME");
-    const char* home = getenv("HOME");
-
-    if (xdg_data_home != NULL) {
-        snprintf(db_path, sizeof(db_path), "%s/cclip/db.sqlite3", xdg_data_home);
-    } else if (home != NULL) {
-        snprintf(db_path, sizeof(db_path), "%s/.local/share/cclip/db.sqlite3", home);
-    } else {
-        return NULL;
-    }
-
-    return db_path;
-}

@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 #include <sys/signalfd.h>
 #include <sys/epoll.h>
 #include <string.h>
@@ -23,23 +24,26 @@
 #include <errno.h>
 #include <stdlib.h>
 
+#include "cclipd.h"
 #include "wayland.h"
 #include "log.h"
 #include "db.h"
+#include "sql.h"
 #include "config.h"
 #include "xmalloc.h"
-#include "db_path.h"
 #include "getopt.h"
+
+struct sqlite3* db = NULL;
 
 #define EPOLL_MAX_EVENTS 16
 
-void print_version_and_exit(void) {
+static void print_version_and_exit(void) {
     fprintf(stderr, "cclipd version %s, branch %s, commit %s\n",
             CCLIP_GIT_TAG, CCLIP_GIT_BRANCH, CCLIP_GIT_COMMIT_HASH);
     exit(0);
 }
 
-void print_help_and_exit(int exit_status) {
+static void print_help_and_exit(int exit_status) {
     const char* help_string =
         "cclipd - clipboard manager daemon\n"
         "\n"
@@ -64,7 +68,7 @@ void print_help_and_exit(int exit_status) {
     exit(exit_status);
 }
 
-int parse_command_line(int argc, char** argv) {
+static int parse_command_line(int argc, char** argv) {
     int opt;
 
     while ((opt = getopt(argc, argv, ":d:t:s:c:P:pevVh")) != -1) {
@@ -129,6 +133,17 @@ int parse_command_line(int argc, char** argv) {
     return 0;
 }
 
+static bool reopen_database(void) {
+    cleanup_statements();
+    db_close(db);
+
+    db = db_open(config.db_path, config.create_db_if_not_exists);
+    if (db == NULL) {
+        return false;
+    }
+    return prepare_statements();
+}
+
 int main(int argc, char** argv) {
     int epoll_fd = -1;
     int signal_fd = -1;
@@ -146,25 +161,49 @@ int main(int argc, char** argv) {
 
     log_init(stderr, config.loglevel);
 
-    if (config.db_path == NULL) {
-        config.db_path = get_default_db_path();
-    }
-    if (config.db_path == NULL) {
-        log_print(ERR, "failed to determine db file path, both HOME and XDG_DATA_HOME are unset");
-        exit_status = 1;
-        goto cleanup;
-    }
-
     if (config.accepted_mime_types_count == 0) {
         config.accepted_mime_types[0] = xstrdup("*");
         config.accepted_mime_types_count = 1;
     }
 
-    if (db_init(config.db_path, config.create_db_if_not_exists) < 0) {
-        log_print(ERR, "failed to init database");
+    db = db_open(config.db_path, config.create_db_if_not_exists);
+    if (db == NULL) {
+        log_print(ERR, "failed to open database");
         exit_status = 1;
         goto cleanup;
     };
+
+    const int32_t user_version = db_get_user_version(db);
+    if (user_version == 0) {
+        log_print(INFO, "db schema version is 0, initialising empty database");
+        if (!db_init(db)) {
+            log_print(ERR, "failed to initialise database!");
+            exit_status = 1;
+            goto cleanup;
+        }
+    } else if (user_version < DB_USER_SCHEMA_VERSION) {
+        log_print(INFO, "db schema version is %d (%d expected), migrating",
+                  user_version, DB_USER_SCHEMA_VERSION);
+        if (!db_migrate(db, user_version, DB_USER_SCHEMA_VERSION)) {
+            log_print(ERR, "failed to perform migration");
+            exit_status = 1;
+            goto cleanup;
+        }
+    } else if (user_version > DB_USER_SCHEMA_VERSION) {
+        log_print(ERR, "db schema version is %d which is more than "
+                  "the maximum version this build of cclipd supports (%d)",
+                  user_version, DB_USER_SCHEMA_VERSION);
+        exit_status = 1;
+        goto cleanup;
+    } else /* if (user_version == DB_USER_SCHEMA_VERSION) */ {
+        log_print(INFO, "opened database version %d", user_version);
+    }
+
+    if (!prepare_statements()) {
+        log_print(ERR, "failed to prepare sql statements");
+        exit_status = 1;
+        goto cleanup;
+    }
 
     wayland_fd = wayland_init();
     if (wayland_fd < 0) {
@@ -260,13 +299,8 @@ int main(int argc, char** argv) {
                     goto cleanup;
                 case SIGUSR1:
                     log_print(INFO, "received SIGUSR1, closing and reopening db connection");
-                    if (db_cleanup() < 0) {
-                        log_print(ERR, "failed to deinit db");
-                        exit_status = 1;
-                        goto cleanup;
-                    };
-                    if (db_init(config.db_path, config.create_db_if_not_exists) < 0) {
-                        log_print(ERR, "failed to reinit db");
+                    if (!reopen_database()) {
+                        log_print(ERR, "failed to reopen database");
                         exit_status = 1;
                         goto cleanup;
                     };
@@ -276,7 +310,9 @@ int main(int argc, char** argv) {
         }
     }
 cleanup:
-    db_cleanup();
+    cleanup_statements();
+    db_close(db);
+
     wayland_cleanup();
 
     if (signal_fd > 0) {

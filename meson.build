@@ -55,7 +55,7 @@ include_dirs = include_directories([
 common_sources = files([
     'src/common/log.c',
     'src/common/xmalloc.c',
-    'src/common/db_path.c',
+    'src/common/db.c',
     'src/collections/string.c',
 ])
 
@@ -72,7 +72,7 @@ cclip_sources = files([
 
 cclipd_sources = files([
     'src/cclipd/cclipd.c',
-    'src/cclipd/db.c',
+    'src/cclipd/sql.c',
     'src/cclipd/wayland.c',
     'src/cclipd/preview.c',
     'src/cclipd/config.c',

@@ -23,7 +23,7 @@
 #include <wayland-client.h>
 
 #include "wayland.h"
-#include "db.h"
+#include "sql.h"
 #include "config.h"
 #include "log.h"
 #include "xmalloc.h"
@@ -132,7 +132,7 @@ static void receive_offer(struct zwlr_data_control_offer_v1* offer) {
         goto out;
     }
 
-    if (insert_db_entry(buffer, bytes_read, mime_type) < 0) {
+    if (!insert_db_entry(buffer, bytes_read, mime_type)) {
         log_print(ERR, "failed to insert entry into database!");
     };
 
