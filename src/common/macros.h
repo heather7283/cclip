@@ -20,3 +20,5 @@
 
 #define TOSTRING(...) #__VA_ARGS__
 
+#define SIZEOF_ARRAY(arr) (sizeof(arr) / sizeof(arr[0]))
+

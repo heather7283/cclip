@@ -22,15 +22,6 @@
 #include <time.h>
 #include <stdbool.h>
 
-struct db_entry {
-    int64_t rowid; /* https://www.sqlite.org/lang_createtable.html#rowid */
-    const void* data; /* arbitrary data */
-    int64_t data_size; /* size of data in bytes */
-    char* preview; /* string */
-    const char* mime_type; /* string */
-    time_t timestamp; /* unix seconds */
-};
-
 bool prepare_statements(void);
 void cleanup_statements(void);
 

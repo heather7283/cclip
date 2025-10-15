@@ -18,8 +18,8 @@
 #include <sys/wait.h>
 #include <unistd.h>
 #include <string.h>
-#include <errno.h>
 #include <stdlib.h>
+
 #include <sqlite3.h>
 
 #include "cclipd.h"
@@ -27,7 +27,18 @@
 #include "config.h"
 #include "preview.h"
 #include "log.h"
+#include "macros.h"
 #include "xxhash.h"
+
+struct db_entry {
+    int64_t rowid; /* https://www.sqlite.org/lang_createtable.html#rowid */
+    const void* data; /* arbitrary data */
+    int64_t data_size; /* size of data in bytes */
+    uint64_t data_hash; /* xxhash3 */
+    char* preview; /* string */
+    const char* mime_type; /* string */
+    time_t timestamp; /* unix seconds */
+};
 
 enum {
     STMT_INSERT,
@@ -35,10 +46,37 @@ enum {
     STMT_BEGIN,
     STMT_COMMIT,
     STMT_ROLLBACK,
-    STMT_END,
 };
-static sqlite3_stmt* statements[STMT_END] = {0};
 
+static struct {
+    const char *src;
+    struct sqlite3_stmt* stmt;
+} statements[] = {
+    [STMT_INSERT] = { .src = TOSTRING(
+        INSERT INTO history ( data, data_hash, data_size, preview, mime_type, timestamp )
+        VALUES ( ?, ?, ?, ?, ?, ? )
+        ON CONFLICT (data_hash) DO UPDATE SET timestamp=excluded.timestamp
+    )},
+    [STMT_DELETE_OLDEST] = { .src = TOSTRING(
+        DELETE FROM history WHERE rowid IN (
+            SELECT rowid FROM history
+            WHERE tag IS NULL
+            ORDER BY timestamp DESC
+            LIMIT -1 OFFSET ?
+        )
+    )},
+    [STMT_BEGIN] = { .src = TOSTRING(
+        BEGIN
+    )},
+    [STMT_COMMIT] = { .src = TOSTRING(
+        COMMIT
+    )},
+    [STMT_ROLLBACK] = { .src = TOSTRING(
+        ROLLBACK
+    )},
+};
+
+/* TODO: use named parameters instead of this nonsense */
 enum {
     DATA_LOCATION      = 1,
     DATA_HASH_LOCATION = 2,
@@ -47,134 +85,150 @@ enum {
     MIME_TYPE_LOCATION = 5,
     TIMESTAMP_LOCATION = 6,
 };
-static const char insert_stmt[] =
-    "INSERT INTO history(data, data_hash, data_size, preview, mime_type, timestamp) "
-    "VALUES(?, ?, ?, ?, ?, ?) "
-    "ON CONFLICT(data_hash) DO UPDATE SET timestamp=excluded.timestamp";
-
-static const char delete_oldest_stmt[] =
-    "DELETE FROM history WHERE rowid IN ( "
-       "SELECT rowid FROM history "
-       "WHERE tag IS NULL "
-       "ORDER BY timestamp DESC "
-       "LIMIT -1 OFFSET ? "
-    ")";
 
 bool prepare_statements(void) {
     int rc;
 
-    rc = sqlite3_prepare_v2(db, insert_stmt, -1, &statements[STMT_INSERT], NULL);
-    if (rc != SQLITE_OK) {
-        log_print(ERR, "failed to prepare sqlite statement: %s", sqlite3_errmsg(db));
-        return false;
-    }
-
-    rc = sqlite3_prepare_v2(db, delete_oldest_stmt, -1, &statements[STMT_DELETE_OLDEST], NULL);
-    if (rc != SQLITE_OK) {
-        log_print(ERR, "failed to prepare sqlite statement: %s", sqlite3_errmsg(db));
-        return false;
-    }
-
-    rc = sqlite3_prepare_v2(db, "BEGIN", -1, &statements[STMT_BEGIN], NULL);
-    if (rc != SQLITE_OK) {
-        log_print(ERR, "failed to prepare sqlite statement: %s", sqlite3_errmsg(db));
-        return false;
-    }
-
-    rc = sqlite3_prepare_v2(db, "COMMIT", -1, &statements[STMT_COMMIT], NULL);
-    if (rc != SQLITE_OK) {
-        log_print(ERR, "failed to prepare sqlite statement: %s", sqlite3_errmsg(db));
-        return false;
-    }
-
-    rc = sqlite3_prepare_v2(db, "ROLLBACK", -1, &statements[STMT_ROLLBACK], NULL);
-    if (rc != SQLITE_OK) {
-        log_print(ERR, "failed to prepare sqlite statement: %s", sqlite3_errmsg(db));
-        return false;
+    for (size_t i = 0; i < SIZEOF_ARRAY(statements); i++) {
+        rc = sqlite3_prepare_v2(db, statements[i].src, -1, &statements[i].stmt, NULL);
+        if (rc != SQLITE_OK) {
+            log_print(ERR, "failed to prepare sqlite statement:");
+            log_print(ERR, "%s", statements[i].src);
+            log_print(ERR, "reason: %s", sqlite3_errmsg(db));
+            return false;
+        }
     }
 
     return true;
 }
 
 void cleanup_statements(void) {
-    for (int i = 0; i < STMT_END; i++) {
-        sqlite3_finalize(statements[i]);
-        statements[i] = NULL;
+    for (size_t i = 0; i < SIZEOF_ARRAY(statements); i++) {
+        sqlite3_finalize(statements[i].stmt);
+        statements[i].stmt = NULL;
     }
 }
 
-bool insert_db_entry(const void* data, size_t data_size, const char* mime) {
-    int rc = 0;
-    char* preview = NULL;
+static bool begin_transaction(void) {
+    struct sqlite3_stmt* const stmt = statements[STMT_BEGIN].stmt;
+    bool ret = true;
 
-    uint64_t data_hash = XXH3_64bits(data, data_size);
-    log_print(TRACE, "entry hash: %016lX", data_hash);
-
-    time_t timestamp = time(NULL);
-
-    preview = generate_preview(data, data_size, mime);
-
-    /* transaction */
     log_print(TRACE, "beginning transaction");
-    sqlite3_reset(statements[STMT_BEGIN]);
-    rc = sqlite3_step(statements[STMT_BEGIN]);
+    int rc = sqlite3_step(stmt);
     if (rc != SQLITE_DONE) {
         log_print(ERR, "sql: failed to begin transaction: %s", sqlite3_errmsg(db));
-        goto out;
+        ret = false;
     }
 
-    /* insert */
-    sqlite3_reset(statements[STMT_INSERT]);
-    sqlite3_clear_bindings(statements[STMT_INSERT]);
+    sqlite3_reset(stmt);
+    return ret;
+}
 
-    sqlite3_bind_blob(statements[STMT_INSERT], DATA_LOCATION, data, data_size, SQLITE_STATIC);
-    sqlite3_bind_int64(statements[STMT_INSERT], DATA_HASH_LOCATION, *(int64_t *)&data_hash);
-    sqlite3_bind_int64(statements[STMT_INSERT], DATA_SIZE_LOCATION, data_size);
-    sqlite3_bind_text(statements[STMT_INSERT], PREVIEW_LOCATION, preview, -1, SQLITE_STATIC);
-    sqlite3_bind_text(statements[STMT_INSERT], MIME_TYPE_LOCATION, mime, -1, SQLITE_STATIC);
-    sqlite3_bind_int64(statements[STMT_INSERT], TIMESTAMP_LOCATION, timestamp);
+static bool rollback_transaction(void) {
+    struct sqlite3_stmt* const stmt = statements[STMT_ROLLBACK].stmt;
+    bool ret = true;
 
-    rc = sqlite3_step(statements[STMT_INSERT]);
+    log_print(TRACE, "rolling back transaction");
+    int rc = sqlite3_step(stmt);
     if (rc != SQLITE_DONE) {
-        log_print(ERR, "sql: failed to insert entry into db: %s", sqlite3_errmsg(db));
-        goto rollback;
-    }
-    log_print(DEBUG, "record inserted successfully");
-
-    /* delete oldest entries above the limit */
-    if (config.max_entries_count > 0) {
-        sqlite3_reset(statements[STMT_DELETE_OLDEST]);
-        sqlite3_clear_bindings(statements[STMT_DELETE_OLDEST]);
-
-        sqlite3_bind_int(statements[STMT_DELETE_OLDEST], 1, config.max_entries_count);
-
-        rc = sqlite3_step(statements[STMT_DELETE_OLDEST]);
-        if (rc != SQLITE_DONE) {
-            log_print(ERR, "sql: failed to delete oldest entries: %s", sqlite3_errmsg(db));
-            goto rollback;
-        }
+        log_print(ERR, "sql: failed to rollback transaction: %s", sqlite3_errmsg(db));
+        ret = false;
     }
 
-    /* commit transaction */
-    log_print(TRACE, "ending transaction");
-    sqlite3_reset(statements[STMT_COMMIT]);
-    rc = sqlite3_step(statements[STMT_COMMIT]);
+    sqlite3_reset(stmt);
+    return ret;
+}
+
+static bool commit_transaction(void) {
+    struct sqlite3_stmt* const stmt = statements[STMT_COMMIT].stmt;
+    bool ret = true;
+
+    log_print(TRACE, "committing transaction");
+    int rc = sqlite3_step(stmt);
     if (rc != SQLITE_DONE) {
         log_print(ERR, "sql: failed to commit transaction: %s", sqlite3_errmsg(db));
+        ret = false;
+    }
+
+    sqlite3_reset(stmt);
+    return ret;
+}
+
+static bool do_insert(const struct db_entry* e) {
+    struct sqlite3_stmt* const stmt = statements[STMT_INSERT].stmt;
+    bool ret = true;
+
+    sqlite3_bind_blob(stmt, DATA_LOCATION, e->data, e->data_size, SQLITE_STATIC);
+    sqlite3_bind_int64(stmt, DATA_HASH_LOCATION, *(int64_t *)&e->data_hash);
+    sqlite3_bind_int64(stmt, DATA_SIZE_LOCATION, e->data_size);
+    sqlite3_bind_text(stmt, PREVIEW_LOCATION, e->preview, -1, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, MIME_TYPE_LOCATION, e->mime_type, -1, SQLITE_STATIC);
+    sqlite3_bind_int64(stmt, TIMESTAMP_LOCATION, e->timestamp);
+
+    int rc = sqlite3_step(stmt);
+    if (rc != SQLITE_DONE) {
+        log_print(ERR, "sql: failed to insert entry into db: %s", sqlite3_errmsg(db));
+        ret = false;
+    } else {
+        log_print(DEBUG, "record inserted successfully");
+    }
+
+    sqlite3_reset(stmt);
+    sqlite3_clear_bindings(stmt);
+    return ret;
+}
+
+static bool do_delete_oldest(int leave_count) {
+    struct sqlite3_stmt* const stmt = statements[STMT_DELETE_OLDEST].stmt;
+    bool ret = true;
+
+    sqlite3_bind_int(stmt, 1, leave_count);
+
+    int rc = sqlite3_step(stmt);
+    if (rc != SQLITE_DONE) {
+        log_print(ERR, "sql: failed to delete oldest entries: %s", sqlite3_errmsg(db));
+        ret = false;
+    }
+
+    sqlite3_reset(stmt);
+    sqlite3_clear_bindings(stmt);
+    return ret;
+}
+
+bool insert_db_entry(const void* data, size_t data_size, const char* mime) {
+    const uint64_t data_hash = XXH3_64bits(data, data_size);
+    const time_t timestamp = time(NULL);
+    char* const preview = generate_preview(data, data_size, mime);
+
+    if (!begin_transaction()) {
+        free(preview);
+        return false;
+    }
+
+    const struct db_entry entry = {
+        .data = data,
+        .data_size = data_size,
+        .data_hash = data_hash,
+        .mime_type = mime,
+        .preview = preview,
+        .timestamp = timestamp,
+    };
+    if (!do_insert(&entry)) {
+        goto rollback;
+    } else if (config.max_entries_count > 0 && !do_delete_oldest(config.max_entries_count)) {
         goto rollback;
     }
 
-out:
+    if (!commit_transaction()) {
+        goto rollback;
+    }
+
     free(preview);
     return true;
 
 rollback:
     free(preview);
-    sqlite3_reset(statements[STMT_ROLLBACK]);
-    rc = sqlite3_step(statements[STMT_ROLLBACK]);
-    if (rc != SQLITE_DONE) {
-        log_print(ERR, "sql: failed to rollback transaction: %s", sqlite3_errmsg(db));
-    }
+    rollback_transaction();
     return false;
 }
 
