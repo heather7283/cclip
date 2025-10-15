@@ -28,6 +28,35 @@
 #include "macros.h"
 #include "log.h"
 
+/*
+ * History: schema versions
+ *
+ * Schema version 1: cclip 3.0.0
+ *
+ * CREATE TABLE history (
+ *     data      BLOB    NOT NULL,
+ *     data_hash INTEGER NOT NULL UNIQUE,
+ *     data_size INTEGER NOT NULL,
+ *     preview   TEXT    NOT NULL,
+ *     mime_type TEXT    NOT NULL,
+ *     timestamp INTEGER NOT NULL
+ * );
+ * CREATE INDEX idx_history_timestamp ON history (timestamp);
+ *
+ * Schema version 2: cclip 3.0.0-next (tag column added)
+ *
+ * CREATE TABLE history (
+ *     data      BLOB    NOT NULL,
+ *     data_hash INTEGER NOT NULL UNIQUE,
+ *     data_size INTEGER NOT NULL,
+ *     preview   TEXT    NOT NULL,
+ *     mime_type TEXT    NOT NULL,
+ *     timestamp INTEGER NOT NULL,
+ *     tag       TEXT    UNIQUE
+ * );
+ * CREATE INDEX idx_history_timestamp ON history (timestamp);
+ */
+
 static const char create_table_history[] = TOSTRING(
     CREATE TABLE history (
         data      BLOB    NOT NULL,
