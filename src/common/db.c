@@ -231,18 +231,20 @@ static bool migrate_from_1_to_2(struct sqlite3* db) {
         );
 
         INSERT INTO new_history (
-            data, data_hash, data_size, preview, mime_type, timestamp
+            rowid, data, data_hash, data_size, preview, mime_type, timestamp
         ) SELECT
-            data, data_hash, data_size, preview, mime_type, timestamp
+            rowid, data, data_hash, data_size, preview, mime_type, timestamp
         FROM history;
 
         DROP TABLE history;
         ALTER TABLE new_history RENAME TO history;
+
+        CREATE INDEX idx_history_timestamp ON history ( timestamp );
     );
 
     int rc = sqlite3_exec(db, sql, NULL, NULL, NULL);
     if (rc != SQLITE_OK) {
-        log_print(ERR, "failed to add tag column to the db: %s", sqlite3_errmsg(db));
+        log_print(ERR, "migration: %s", sqlite3_errmsg(db));
         return false;
     }
 
