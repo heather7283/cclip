@@ -55,15 +55,16 @@ static struct {
     [STMT_INSERT] = { .src = TOSTRING(
         INSERT INTO history ( data, data_hash, data_size, preview, mime_type, timestamp )
         VALUES ( ?, ?, ?, ?, ?, ? )
-        ON CONFLICT (data_hash) DO UPDATE SET timestamp=excluded.timestamp
+        ON CONFLICT ( data_hash ) DO UPDATE SET timestamp=excluded.timestamp
     )},
     [STMT_DELETE_OLDEST] = { .src = TOSTRING(
-        DELETE FROM history WHERE rowid IN (
-            SELECT rowid FROM history
-            WHERE tag IS NULL
-            ORDER BY timestamp DESC
-            LIMIT -1 OFFSET ?
-        )
+        WITH newest_entries AS (
+            SELECT id FROM history ORDER BY timestamp DESC LIMIT ?
+        ) DELETE FROM history WHERE id NOT IN (
+            SELECT id FROM newest_entries
+            UNION
+            SELECT DISTINCT entry_id FROM history_tags
+        );
     )},
     [STMT_BEGIN] = { .src = TOSTRING(
         BEGIN
