@@ -189,8 +189,26 @@ bool db_set_user_version(struct sqlite3* db, int32_t version) {
 }
 
 static bool migrate_from_1_to_2(struct sqlite3* db) {
+    /* it is not possible to add a UNIQUE column to a sqlite table */
     static const char sql[] = TOSTRING(
-        ALTER TABLE history ADD COLUMN tag TEXT UNIQUE;
+        CREATE TABLE new_history (
+            data      BLOB    NOT NULL,
+            data_hash INTEGER NOT NULL UNIQUE,
+            data_size INTEGER NOT NULL,
+            preview   TEXT    NOT NULL,
+            mime_type TEXT    NOT NULL,
+            timestamp INTEGER NOT NULL,
+            tag       TEXT    UNIQUE
+        );
+
+        INSERT INTO new_history (
+            data, data_hash, data_size, preview, mime_type, timestamp
+        ) SELECT
+            data, data_hash, data_size, preview, mime_type, timestamp
+        FROM history;
+
+        DROP TABLE history;
+        ALTER TABLE new_history RENAME TO history;
     );
 
     int rc = sqlite3_exec(db, sql, NULL, NULL, NULL);
