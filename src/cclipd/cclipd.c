@@ -138,7 +138,11 @@ static bool reopen_database(void) {
     cleanup_statements();
     db_close(db);
 
-    return db_open(config.db_path, config.create_db_if_not_exists);
+    db = db_open(config.db_path, config.create_db_if_not_exists);
+    if (db == NULL) {
+        return false;
+    }
+    return prepare_statements();
 }
 
 int main(int argc, char** argv) {
@@ -201,6 +205,8 @@ int main(int argc, char** argv) {
                   user_version, DB_USER_SCHEMA_VERSION);
         exit_status = 1;
         goto cleanup;
+    } else /* if (user_version == DB_USER_SCHEMA_VERSION) */ {
+        log_print(INFO, "opened database version %d", user_version);
     }
 
     if (!prepare_statements()) {
