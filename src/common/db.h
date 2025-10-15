@@ -23,7 +23,7 @@
 
 #include <sqlite3.h>
 
-#define DB_USER_SCHEMA_VERSION 2
+#define DB_USER_SCHEMA_VERSION 3
 
 /* opens the database at path (or default path is NULL) */
 struct sqlite3* db_open(const char *path, bool create_if_not_exists);
@@ -51,6 +51,7 @@ bool db_init(struct sqlite3* db);
  * Empty, just created database: 0
  * Database created with cclip 3.0.0: 1
  * Database created with cclip 3.0.0-next (with tag column): 2
+ * Database created with cclip >=3.1.0 (proper usage of user_version): >=3
  */
 int32_t db_get_user_version(struct sqlite3* db);
 bool db_set_user_version(struct sqlite3* db, int32_t version);
