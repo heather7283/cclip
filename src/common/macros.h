@@ -18,21 +18,5 @@
 
 #pragma once
 
-#include <stdint.h>
-#include <time.h>
-#include <stdbool.h>
-
-struct db_entry {
-    int64_t rowid; /* https://www.sqlite.org/lang_createtable.html#rowid */
-    const void* data; /* arbitrary data */
-    int64_t data_size; /* size of data in bytes */
-    char* preview; /* string */
-    const char* mime_type; /* string */
-    time_t timestamp; /* unix seconds */
-};
-
-int db_cleanup(void);
-int db_init(const char* const db_path, bool create_if_not_exists);
-
-int insert_db_entry(const void* data, size_t data_size, const char* mime);
+#define TOSTRING(...) #__VA_ARGS__
 
