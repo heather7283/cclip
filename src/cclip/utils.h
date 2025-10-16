@@ -18,6 +18,7 @@
 
 #pragma once
 
+#include <sys/uio.h>
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -30,4 +31,10 @@ bool get_id(const char* str, int64_t* res);
 
 #define MAX_FIELD_LIST_SIZE 1024
 const char* build_field_list(char* raw_list);
+
+/*
+ * writev(2) wrapper that ensure all data gets written
+ * NOTE: mutates the iov array
+ */
+bool writev_full(int fd, struct iovec *iov, int iovcnt);
 

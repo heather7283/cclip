@@ -16,7 +16,11 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <sys/uio.h>
+#include <limits.h>
 #include <stdlib.h>
+#include <string.h>
+#include <errno.h>
 #include <stdio.h>
 
 #include "action_list.h"
@@ -37,14 +41,6 @@ static void print_help_and_exit(FILE *stream, int rc) {
 
     fprintf(stream, "%s", help);
     exit(rc);
-}
-
-static int print_row(void* data, int argc, char** argv, char** column_names) {
-    for (int i = 0; i < argc - 1; i++) {
-        printf("%s\t", argv[i] ? argv[i] : "");
-    }
-    printf("%s\n", argv[argc - 1] ? argv[argc - 1] : "");
-    return 0;
 }
 
 int action_list(int argc, char** argv) {
@@ -95,9 +91,38 @@ int action_list(int argc, char** argv) {
     char sql[MAX_FIELD_LIST_SIZE + sizeof(sql1) + sizeof(sql2) + sizeof(sql3) + sizeof(sql4)];
     snprintf(sql, sizeof(sql), "%s%s%s%s%s", sql1, fields, sql2, only_tagged ? sql3 : "", sql4);
 
-    char* errmsg;
-    if (sqlite3_exec(db, sql, print_row, NULL, &errmsg) != SQLITE_OK) {
-        log_print(ERR, "sqlite error: %s", errmsg);
+    int rc;
+    struct sqlite3_stmt* stmt = NULL;
+
+    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+    if (rc != SQLITE_OK) {
+        log_print(ERR, "failed to prepare sql statement:");
+        log_print(ERR, "source: %s", sql);
+        log_print(ERR, "reason: %s", sqlite3_errmsg(db));
+        return 1;
+    }
+
+    /* field + tab + field + tab + field + newline */
+    const int ncols = sqlite3_column_count(stmt);
+    struct iovec* iov = malloc(sizeof(*iov) * (ncols * 2));
+    while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
+        for (int i = 0; i < ncols; i++) {
+            iov[i * 2] = (struct iovec){
+                .iov_base = (void *)sqlite3_column_blob(stmt, i),
+                .iov_len = sqlite3_column_bytes(stmt, i),
+            };
+            iov[(i * 2) + 1] = (struct iovec){
+                .iov_base = (i < ncols - 1) ? "\t" : "\n",
+                .iov_len = 1,
+            };
+        }
+
+        if (!writev_full(1, iov, ncols * 2)) {
+            log_print(ERR, "failed to write row: %s", strerror(errno));
+        }
+    }
+    if (rc != SQLITE_DONE) {
+        log_print(ERR, "failed to list rows: %s", sqlite3_errmsg(db));
         return 1;
     }
 

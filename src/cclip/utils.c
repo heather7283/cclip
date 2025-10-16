@@ -139,3 +139,35 @@ const char* build_field_list(char* raw_list) {
     return result_list;
 }
 
+/*
+ * writev(2) wrapper that ensures all data gets written.
+ * NOTE: mutates iov array
+ */
+bool writev_full(int fd, struct iovec *iov, int iovcnt) {
+    while (iovcnt > 0) {
+        ssize_t written = writev(fd, iov, iovcnt);
+        if (written <= 0) {
+            if (written < 0 && errno == EINTR) {
+                continue;
+            }
+            return false;
+        }
+
+        while (written > 0) {
+            if (iov[0].iov_len <= (size_t)written) {
+                /* entire iov was consumed */
+                written -= iov[0].iov_len;
+                iov += 1;
+                iovcnt -= 1;
+            } else {
+                /* iov was partially consumed */
+                iov[0].iov_base = (char *)iov[0].iov_base + written;
+                iov[0].iov_len -= written;
+                written = 0;
+            }
+        }
+    }
+
+    return true;
+}
+
