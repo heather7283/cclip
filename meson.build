@@ -48,13 +48,15 @@ getopt_lib = static_library('getopt', 'thirdparty/getopt/getopt.c')
 include_dirs = include_directories([
     'thirdparty/xxhash',
     'thirdparty/getopt',
-    'src/common'
+    'src/common',
+    'src'
 ])
 
 common_sources = files([
     'src/common/log.c',
     'src/common/xmalloc.c',
     'src/common/db_path.c',
+    'src/collections/string.c',
 ])
 
 cclip_sources = files([
