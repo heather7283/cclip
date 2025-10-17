@@ -29,7 +29,7 @@
 struct sqlite3* db_open(const char *path, bool create_if_not_exists);
 
 /* close the db connection */
-void db_close(struct sqlite3* db);
+bool db_close(struct sqlite3* db);
 
 /*
  * Initialise the db (create tables, indices, etc)

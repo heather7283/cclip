@@ -145,8 +145,13 @@ struct sqlite3* db_open(const char *_path, bool create_if_not_exists) {
     return db;
 }
 
-void db_close(struct sqlite3 *db) {
-    sqlite3_close(db);
+bool db_close(struct sqlite3* db) {
+    if (sqlite3_close(db) != SQLITE_OK) {
+        log_print(ERR, "failed to close database, report this as a bug");
+        return false;
+    }
+
+    return true;
 }
 
 bool db_init(struct sqlite3* db) {
