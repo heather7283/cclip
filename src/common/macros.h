@@ -18,8 +18,8 @@
 
 #pragma once
 
-/*
- * list [-t] ROWS
- */
-int action_list(int argc, char** argv);
+#define SIZEOF_ARRAY(arr) (sizeof(arr) / sizeof(arr[0]))
+
+#define STREQ(a, b) (strcmp((a), (b)) == 0)
+#define STRNEQ(a, b, len) (strncmp((a), (b), (len)) == 0)
 

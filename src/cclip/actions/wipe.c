@@ -18,31 +18,42 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 
-#include "action_vacuum.h"
-#include "cclip.h"
+#include <sqlite3.h>
+
 #include "getopt.h"
 #include "log.h"
 
 static void print_help_and_exit(FILE *stream, int rc) {
     const char *help =
         "Usage:\n"
-        "    cclip vacuum\n"
+        "    cclip wipe [-ts]\n"
         "\n"
         "Command line options:\n"
-        "    cclip vacuum does not take command line options\n"
+        "    -t  Do not preserve tagged entries\n"
+        "    -s  Enable secure delete pragma\n"
     ;
 
     fprintf(stream, "%s", help);
     exit(rc);
 }
 
-int action_vacuum(int argc, char** argv) {
+int action_wipe(int argc, char** argv, struct sqlite3* db) {
+    bool preserve_tagged = true;
+    bool secure_delete = false;
+
     int opt;
     optreset = 1;
     optind = 0;
-    while ((opt = getopt(argc, argv, ":h")) != -1) {
+    while ((opt = getopt(argc, argv, ":hts")) != -1) {
         switch (opt) {
+        case 's':
+            secure_delete = true;
+            break;
+        case 't':
+            preserve_tagged = false;
+            break;
         case 'h':
             print_help_and_exit(stdout, 0);
             break;
@@ -65,7 +76,21 @@ int action_vacuum(int argc, char** argv) {
         return 1;
     }
 
-    const char* sql = "VACUUM";
+    if (secure_delete) {
+        char* errmsg;
+        int ret = sqlite3_exec(db, "PRAGMA secure_delete = 1", NULL, NULL, &errmsg);
+        if (ret != SQLITE_OK) {
+            log_print(ERR, "sqlite error: %s", errmsg);
+            return 1;
+        }
+    }
+
+    const char* sql;
+    if (preserve_tagged) {
+        sql = "DELETE FROM history WHERE tag IS NULL";
+    } else {
+        sql = "DELETE FROM history";
+    }
 
     char* errmsg;
     if (sqlite3_exec(db, sql, NULL, NULL, &errmsg) != SQLITE_OK) {

@@ -62,12 +62,12 @@ common_sources = files([
 cclip_sources = files([
     'src/cclip/cclip.c',
     'src/cclip/utils.c',
-    'src/cclip/action_list.c',
-    'src/cclip/action_get.c',
-    'src/cclip/action_tag.c',
-    'src/cclip/action_delete.c',
-    'src/cclip/action_wipe.c',
-    'src/cclip/action_vacuum.c',
+    'src/cclip/actions/list.c',
+    'src/cclip/actions/get.c',
+    'src/cclip/actions/tag.c',
+    'src/cclip/actions/delete.c',
+    'src/cclip/actions/wipe.c',
+    'src/cclip/actions/vacuum.c',
 ])
 
 cclipd_sources = files([

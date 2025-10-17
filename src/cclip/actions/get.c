@@ -20,9 +20,9 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "action_get.h"
-#include "cclip.h"
-#include "utils.h"
+#include <sqlite3.h>
+
+#include "../utils.h"
 #include "getopt.h"
 #include "log.h"
 
@@ -48,7 +48,7 @@ static int print_row(void* data, int argc, char** argv, char** column_names) {
     return 0;
 }
 
-int action_get(int argc, char** argv) {
+int action_get(int argc, char** argv, struct sqlite3* db) {
     int opt;
     optreset = 1;
     optind = 0;

@@ -18,41 +18,38 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdbool.h>
+#include <string.h>
 
-#include "action_wipe.h"
-#include "cclip.h"
+#include <sqlite3.h>
+
+#include "../utils.h"
 #include "getopt.h"
 #include "log.h"
 
 static void print_help_and_exit(FILE *stream, int rc) {
     const char *help =
         "Usage:\n"
-        "    cclip wipe [-ts]\n"
+        "    cclip delete [-s] ID\n"
         "\n"
         "Command line options:\n"
-        "    -t  Do not preserve tagged entries\n"
         "    -s  Enable secure delete pragma\n"
+        "    ID  Entry id to delete (- to read from stdin)\n"
     ;
 
     fprintf(stream, "%s", help);
     exit(rc);
 }
 
-int action_wipe(int argc, char** argv) {
-    bool preserve_tagged = true;
+int action_delete(int argc, char** argv, struct sqlite3* db) {
     bool secure_delete = false;
 
     int opt;
     optreset = 1;
     optind = 0;
-    while ((opt = getopt(argc, argv, ":hts")) != -1) {
+    while ((opt = getopt(argc, argv, ":hs")) != -1) {
         switch (opt) {
         case 's':
             secure_delete = true;
-            break;
-        case 't':
-            preserve_tagged = false;
             break;
         case 'h':
             print_help_and_exit(stdout, 0);
@@ -71,8 +68,19 @@ int action_wipe(int argc, char** argv) {
     argc = argc - optind;
     argv = &argv[optind];
 
-    if (argc > 0) {
+    char* id_str;
+    if (argc < 1) {
+        log_print(ERR, "not enough arguments");
+        return 1;
+    } else if (argc == 1) {
+        id_str = argv[0];
+    }  else {
         log_print(ERR, "extra arguments on the command line");
+        return 1;
+    }
+
+    int64_t id;
+    if (!get_id(id_str, &id)) {
         return 1;
     }
 
@@ -80,21 +88,30 @@ int action_wipe(int argc, char** argv) {
         char* errmsg;
         int ret = sqlite3_exec(db, "PRAGMA secure_delete = 1", NULL, NULL, &errmsg);
         if (ret != SQLITE_OK) {
-            log_print(ERR, "sqlite error: %s", errmsg);
+            log_print(ERR, "failed to enable secure delete: %s", errmsg);
             return 1;
         }
     }
 
-    const char* sql;
-    if (preserve_tagged) {
-        sql = "DELETE FROM history WHERE tag IS NULL";
-    } else {
-        sql = "DELETE FROM history";
+    const char* sql = "DELETE FROM history WHERE rowid = ?";
+
+    sqlite3_stmt* stmt;
+    int ret = sqlite3_prepare(db, sql, -1, &stmt, NULL);
+    if (ret != SQLITE_OK) {
+        log_print(ERR, "failed to prepare statement: %s", sqlite3_errmsg(db));
+        return 1;
     }
 
-    char* errmsg;
-    if (sqlite3_exec(db, sql, NULL, NULL, &errmsg) != SQLITE_OK) {
-        log_print(ERR, "sqlite error: %s", errmsg);
+    sqlite3_bind_int64(stmt, 1, id);
+
+    ret = sqlite3_step(stmt);
+    if (ret == SQLITE_DONE) {
+        if (sqlite3_changes(db) == 0) {
+            log_print(ERR, "table was not modified, does id %li exist?", id);
+            return 1;
+        }
+    } else {
+        log_print(ERR, "sqlite error: %s", sqlite3_errmsg(db));
         return 1;
     }
 

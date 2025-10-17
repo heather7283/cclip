@@ -139,10 +139,6 @@ const char* build_field_list(char* raw_list) {
     return result_list;
 }
 
-/*
- * writev(2) wrapper that ensures all data gets written.
- * NOTE: mutates iov array
- */
 bool writev_full(int fd, struct iovec *iov, int iovcnt) {
     while (iovcnt > 0) {
         ssize_t written = writev(fd, iov, iovcnt);

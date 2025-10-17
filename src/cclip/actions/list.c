@@ -23,9 +23,9 @@
 #include <errno.h>
 #include <stdio.h>
 
-#include "action_list.h"
-#include "cclip.h"
-#include "utils.h"
+#include <sqlite3.h>
+
+#include "../utils.h"
 #include "getopt.h"
 #include "log.h"
 
@@ -43,7 +43,7 @@ static void print_help_and_exit(FILE *stream, int rc) {
     exit(rc);
 }
 
-int action_list(int argc, char** argv) {
+int action_list(int argc, char** argv, struct sqlite3* db) {
     bool only_tagged = false;
 
     int opt;

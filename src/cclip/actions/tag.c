@@ -21,9 +21,9 @@
 #include <string.h>
 #include <ctype.h>
 
-#include "action_tag.h"
-#include "cclip.h"
-#include "utils.h"
+#include <sqlite3.h>
+
+#include "../utils.h"
 #include "getopt.h"
 #include "log.h"
 
@@ -43,7 +43,7 @@ static void print_help_and_exit(FILE *stream, int rc) {
     exit(rc);
 }
 
-int action_tag(int argc, char** argv) {
+int action_tag(int argc, char** argv, struct sqlite3* db) {
     bool delete_tag = false;
 
     int opt;

@@ -21,19 +21,44 @@
 #include <limits.h>
 #include <stdlib.h>
 
-#include "cclip.h"
-#include "action_list.h"
-#include "action_get.h"
-#include "action_tag.h"
-#include "action_delete.h"
-#include "action_wipe.h"
-#include "action_vacuum.h"
+#include <sqlite3.h>
+
 #include "xmalloc.h"
 #include "db_path.h"
 #include "getopt.h"
+#include "macros.h"
 #include "log.h"
 
-struct sqlite3* db = NULL;
+#define FOR_LIST_OF_ACTIONS(DO) \
+    DO(delete) \
+    DO(get) \
+    DO(list) \
+    DO(tag) \
+    DO(vacuum) \
+    DO(wipe) \
+
+typedef int (action_func_t)(int argc, char** argv, struct sqlite3* db);
+
+#define DEFINE_ACTION_FUNCTION(name, ...) action_func_t action_##name;
+FOR_LIST_OF_ACTIONS(DEFINE_ACTION_FUNCTION)
+
+static const struct {
+    const char* const name;
+    action_func_t* const action;
+} actions[] = {
+    #define DEFINE_ACTION_TABLE(name, ...) { #name, action_##name },
+    FOR_LIST_OF_ACTIONS(DEFINE_ACTION_TABLE)
+};
+
+static action_func_t* match_action(const char* input) {
+    for (size_t i = 0; i < SIZEOF_ARRAY(actions); i++) {
+        if (STREQ(input, actions[i].name)) {
+            return actions[i].action;
+        }
+    }
+
+    return NULL;
+}
 
 void print_version_and_exit(void) {
     fprintf(stderr, "cclip version %s, branch %s, commit %s\n",
@@ -53,13 +78,9 @@ void print_help_and_exit(FILE *stream, int rc) {
         "    -V            display version and exit\n"
         "    -h            print this help message and exit\n"
         "\n"
-        "Actions (pass -h after action to see detailed help):\n"
-        "    list [-t] [FIELDS]\n"
-        "    get ID [FIELDS]\n"
-        "    delete [-s] ID\n"
-        "    tag ID TAG | tag -d ID\n"
-        "    wipe [-ts]\n"
-        "    vacuum\n"
+        "Available actions (pass -h after action to see detailed help):\n"
+        #define DEFINE_ACTION_STRING(name, ...) "    "#name"\n"
+        FOR_LIST_OF_ACTIONS(DEFINE_ACTION_STRING)
     ;
 
     fprintf(stream, "%s", help);
@@ -71,6 +92,7 @@ int main(int argc, char** argv) {
     int exit_status = 0;
     const char* db_path = NULL;
     enum loglevel loglevel = WARN;
+    struct sqlite3* db = NULL;
 
     int opt;
     while ((opt = getopt(argc, argv, ":d:vVh")) != -1) {
@@ -125,23 +147,14 @@ int main(int argc, char** argv) {
         goto cleanup;
     }
 
-    if (strcmp(argv[0], "list") == 0) {
-        exit_status = action_list(argc, argv);
-    } else if (strcmp(argv[0], "get") == 0) {
-        exit_status = action_get(argc, argv);
-    } else if (strcmp(argv[0], "delete") == 0) {
-        exit_status = action_delete(argc, argv);
-    } else if (strcmp(argv[0], "tag") == 0) {
-        exit_status = action_tag(argc, argv);
-    } else if (strcmp(argv[0], "wipe") == 0) {
-        exit_status = action_wipe(argc, argv);
-    } else if (strcmp(argv[0], "vacuum") == 0) {
-        exit_status = action_vacuum(argc, argv);
-    } else {
+    action_func_t* action = match_action(argv[0]);
+    if (action == NULL) {
         log_print(ERR, "invalid action: %s", argv[0]);
         exit_status = 1;
         goto cleanup;
     }
+
+    exit_status = action(argc, argv, db);
 
 cleanup:
     sqlite3_close_v2(db);
