@@ -217,6 +217,25 @@ bool db_set_user_version(struct sqlite3* db, int32_t version) {
     return true;
 }
 
+bool db_set_secure_delete(struct sqlite3* db, bool enable) {
+    int rc;
+    bool ret = true;
+
+    struct sqlite3_stmt* stmt = NULL;
+    sqlite3_prepare(db, "PRAGMA secure_delete = ?", -1, &stmt, NULL);
+
+    sqlite3_bind_int(stmt, 0, (int)enable);
+
+    rc = sqlite3_step(stmt);
+    if (rc == SQLITE_DONE) {
+        log_print(ERR, "failed to set secure_delete to %d: %s", enable, sqlite3_errmsg(db));
+        ret = false;
+    }
+
+    sqlite3_finalize(stmt);
+    return ret;
+}
+
 static bool migrate_from_1_to_2(struct sqlite3* db) {
     /* it is not possible to add a UNIQUE column to a sqlite table */
     static const char sql[] = TOSTRING(

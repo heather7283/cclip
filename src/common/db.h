@@ -55,6 +55,8 @@ bool db_init(struct sqlite3* db);
 int32_t db_get_user_version(struct sqlite3* db);
 bool db_set_user_version(struct sqlite3* db, int32_t version);
 
+bool db_set_secure_delete(struct sqlite3* db, bool enable);
+
 /* perform migration */
 bool db_migrate(struct sqlite3* db, int32_t from, int32_t to);
 
