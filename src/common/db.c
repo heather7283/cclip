@@ -202,19 +202,21 @@ int32_t db_get_user_version(struct sqlite3* db) {
 
 bool db_set_user_version(struct sqlite3* db, int32_t version) {
     int rc;
+    bool ret = true;
 
     struct sqlite3_stmt* stmt = NULL;
-    rc = sqlite3_prepare(db, "PRAGMA user_version = ?", -1, &stmt, NULL);
+    sqlite3_prepare(db, "PRAGMA user_version = ?", -1, &stmt, NULL);
 
     sqlite3_bind_int64(stmt, 0, version);
 
     rc = sqlite3_step(stmt);
     if (rc == SQLITE_DONE) {
         log_print(ERR, "failed to set user_version to %d: %s", version, sqlite3_errmsg(db));
-        return false;
+        ret = false;
     }
 
-    return true;
+    sqlite3_finalize(stmt);
+    return ret;
 }
 
 bool db_set_secure_delete(struct sqlite3* db, bool enable) {
