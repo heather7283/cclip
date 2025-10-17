@@ -157,7 +157,9 @@ int main(int argc, char** argv) {
     exit_status = action(argc, argv, db);
 
 cleanup:
-    sqlite3_close_v2(db);
+    if (sqlite3_close(db) != SQLITE_OK) {
+        log_print(WARN, "failed to close database connection, report this as a bug");
+    }
     exit(exit_status);
 }
 
