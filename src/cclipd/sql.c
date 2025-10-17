@@ -30,6 +30,9 @@
 #include "macros.h"
 #include "xxhash.h"
 
+#define STMT_BIND(stmt, type, name, ...) \
+    sqlite3_bind_##type((stmt), sqlite3_bind_parameter_index((stmt), (name)), ##__VA_ARGS__)
+
 struct db_entry {
     int64_t rowid; /* https://www.sqlite.org/lang_createtable.html#rowid */
     const void* data; /* arbitrary data */
@@ -54,12 +57,12 @@ static struct {
 } statements[] = {
     [STMT_INSERT] = { .src = TOSTRING(
         INSERT INTO history ( data, data_hash, data_size, preview, mime_type, timestamp )
-        VALUES ( ?, ?, ?, ?, ?, ? )
+        VALUES ( @data, @data_hash, @data_size, @preview, @mime_type, @timestamp )
         ON CONFLICT ( data_hash ) DO UPDATE SET timestamp=excluded.timestamp
     )},
     [STMT_DELETE_OLDEST] = { .src = TOSTRING(
         WITH newest_entries AS (
-            SELECT id FROM history ORDER BY timestamp DESC LIMIT ?
+            SELECT id FROM history ORDER BY timestamp DESC LIMIT @keep_count
         ) DELETE FROM history WHERE id NOT IN (
             SELECT id FROM newest_entries
             UNION
@@ -75,16 +78,6 @@ static struct {
     [STMT_ROLLBACK] = { .src = TOSTRING(
         ROLLBACK
     )},
-};
-
-/* TODO: use named parameters instead of this nonsense */
-enum {
-    DATA_LOCATION      = 1,
-    DATA_HASH_LOCATION = 2,
-    DATA_SIZE_LOCATION = 3,
-    PREVIEW_LOCATION   = 4,
-    MIME_TYPE_LOCATION = 5,
-    TIMESTAMP_LOCATION = 6,
 };
 
 bool prepare_statements(void) {
@@ -159,12 +152,12 @@ static bool do_insert(const struct db_entry* e) {
     struct sqlite3_stmt* const stmt = statements[STMT_INSERT].stmt;
     bool ret = true;
 
-    sqlite3_bind_blob(stmt, DATA_LOCATION, e->data, e->data_size, SQLITE_STATIC);
-    sqlite3_bind_int64(stmt, DATA_HASH_LOCATION, *(int64_t *)&e->data_hash);
-    sqlite3_bind_int64(stmt, DATA_SIZE_LOCATION, e->data_size);
-    sqlite3_bind_text(stmt, PREVIEW_LOCATION, e->preview, -1, SQLITE_STATIC);
-    sqlite3_bind_text(stmt, MIME_TYPE_LOCATION, e->mime_type, -1, SQLITE_STATIC);
-    sqlite3_bind_int64(stmt, TIMESTAMP_LOCATION, e->timestamp);
+    STMT_BIND(stmt, blob, "@data", e->data, e->data_size, SQLITE_STATIC);
+    STMT_BIND(stmt, int64, "@data_hash", *(int64_t *)&e->data_hash);
+    STMT_BIND(stmt, int64, "@data_size", e->data_size);
+    STMT_BIND(stmt, text, "@preview", e->preview, -1, SQLITE_STATIC);
+    STMT_BIND(stmt, text, "@mime_type", e->mime_type, -1, SQLITE_STATIC);
+    STMT_BIND(stmt, int64, "@timestamp", e->timestamp);
 
     int rc = sqlite3_step(stmt);
     if (rc != SQLITE_DONE) {
@@ -179,11 +172,11 @@ static bool do_insert(const struct db_entry* e) {
     return ret;
 }
 
-static bool do_delete_oldest(int leave_count) {
+static bool do_delete_oldest(int keep_count) {
     struct sqlite3_stmt* const stmt = statements[STMT_DELETE_OLDEST].stmt;
     bool ret = true;
 
-    sqlite3_bind_int(stmt, 1, leave_count);
+    STMT_BIND(stmt, int, "@keep_count", keep_count);
 
     int rc = sqlite3_step(stmt);
     if (rc != SQLITE_DONE) {
