@@ -23,6 +23,7 @@
 #include <sqlite3.h>
 
 #include "getopt.h"
+#include "db.h"
 #include "log.h"
 
 static void print_help_and_exit(FILE *stream, int rc) {
@@ -76,13 +77,8 @@ int action_wipe(int argc, char** argv, struct sqlite3* db) {
         return 1;
     }
 
-    if (secure_delete) {
-        char* errmsg;
-        int ret = sqlite3_exec(db, "PRAGMA secure_delete = 1", NULL, NULL, &errmsg);
-        if (ret != SQLITE_OK) {
-            log_print(ERR, "sqlite error: %s", errmsg);
-            return 1;
-        }
+    if (secure_delete && !db_set_secure_delete(db, true)) {
+        return 1;
     }
 
     const char* sql;
