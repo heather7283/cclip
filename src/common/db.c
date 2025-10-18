@@ -149,6 +149,13 @@ struct sqlite3* db_open(const char *_path, bool create_if_not_exists) {
         return NULL;
     }
 
+    /* must be enabled explicitly per connection */
+    if (sqlite3_exec(db, "PRAGMA foreign_keys = 1", NULL, NULL, NULL) != SQLITE_OK) {
+        log_print(ERR, "failed to enable foreign key support: %s", sqlite3_errmsg(db));
+        sqlite3_close(db);
+        return NULL;
+    }
+
     return db;
 }
 
@@ -307,7 +314,7 @@ static bool migrate_from_2_to_3(struct sqlite3* db) {
             entry_id INTEGER,
 
             PRIMARY KEY ( tag_id, entry_id ),
-            FOREIGN KEY ( entry_id ) REFERENCES history ( id ) ON DELETE CASCADE,
+            FOREIGN KEY ( entry_id ) REFERENCES new_history ( id ) ON DELETE CASCADE,
             FOREIGN KEY ( tag_id ) REFERENCES tags ( id ) ON DELETE CASCADE
         ) WITHOUT ROWID;
 
