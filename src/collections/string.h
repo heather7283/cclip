@@ -30,6 +30,8 @@ struct string {
 void string_clear(struct string* str);
 void string_free(struct string* str);
 
+bool string_reserve(struct string* str, size_t len);
+
 bool string_append(struct string* str, const char* suffix);
 bool string_appendn(struct string* str, const char* suffix, size_t suffix_len);
 

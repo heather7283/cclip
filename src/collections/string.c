@@ -41,6 +41,10 @@ static bool string_ensure_capacity(struct string *str, size_t cap) {
     return true;
 }
 
+bool string_reserve(struct string* str, size_t len) {
+    return string_ensure_capacity(str, len + 1);
+}
+
 bool string_append(struct string *str, const char *suffix) {
     return string_appendn(str, suffix, strlen(suffix));
 }
