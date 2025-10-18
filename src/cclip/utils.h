@@ -22,15 +22,27 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define SHIFT(n) (argc -= (n), argv += (n), argc > 0)
-
 bool str_to_int64(const char* str, int64_t* res);
 
-/* if str is null, tries to read stdin */
+/* if str is "-", tries to read stdin */
 bool get_id(const char* str, int64_t* res);
 
-#define MAX_FIELD_LIST_SIZE 1024
-const char* build_field_list(char* raw_list);
+enum select_fields {
+    FIELD_ID = 0,
+    FIELD_PREVIEW = 1,
+    FIELD_MIME_TYPE = 2,
+    FIELD_DATA_SIZE = 3,
+    FIELD_TIMESTAMP = 4,
+    FIELD_TAGS = 5,
+
+    SELECT_FIELDS_COUNT
+};
+
+/*
+ * Returns number of fields in raw_list, puts converted fields into fields array in order.
+ * NOTE: mutates raw_list.
+ */
+int build_field_list(char* raw_list, enum select_fields fields[SELECT_FIELDS_COUNT]);
 
 /*
  * writev(2) wrapper that ensure all data gets written
