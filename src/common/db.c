@@ -82,6 +82,13 @@
  *     FOREIGN KEY ( entry_id ) REFERENCES history ( id ) ON DELETE CASCADE,
  *     FOREIGN KEY ( tag_id ) REFERENCES tags ( id ) ON DELETE CASCADE
  * ) WITHOUT ROWID;
+ *
+ * CREATE TRIGGER cleanup_orphaned_tags AFTER DELETE ON history_tags FOR EACH ROW BEGIN
+ *     DELETE FROM tags
+ *     WHERE id = OLD.tag_id
+ *     AND NOT EXISTS ( SELECT 1 FROM history_tags WHERE tag_id = OLD.tag_id );
+ * END;
+ *
  */
 
 static const char* get_default_db_path(void) {
@@ -183,6 +190,12 @@ bool db_init(struct sqlite3* db) {
             FOREIGN KEY ( entry_id ) REFERENCES history ( id ) ON DELETE CASCADE,
             FOREIGN KEY ( tag_id ) REFERENCES tags ( id ) ON DELETE CASCADE
         ) WITHOUT ROWID;
+
+        CREATE TRIGGER cleanup_orphaned_tags AFTER DELETE ON history_tags FOR EACH ROW BEGIN
+            DELETE FROM tags
+            WHERE id = OLD.tag_id
+            AND NOT EXISTS ( SELECT 1 FROM history_tags WHERE tag_id = OLD.tag_id );
+        END;
 
         PRAGMA user_version = 3;
     );
@@ -297,6 +310,12 @@ static bool migrate_from_2_to_3(struct sqlite3* db) {
             FOREIGN KEY ( entry_id ) REFERENCES history ( id ) ON DELETE CASCADE,
             FOREIGN KEY ( tag_id ) REFERENCES tags ( id ) ON DELETE CASCADE
         ) WITHOUT ROWID;
+
+        CREATE TRIGGER cleanup_orphaned_tags AFTER DELETE ON history_tags FOR EACH ROW BEGIN
+            DELETE FROM tags
+            WHERE id = OLD.tag_id
+            AND NOT EXISTS ( SELECT 1 FROM history_tags WHERE tag_id = OLD.tag_id );
+        END;
 
         INSERT INTO new_history (
             id, data, data_hash, data_size, preview, mime_type, timestamp
