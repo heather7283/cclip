@@ -168,8 +168,6 @@ int action_list(int argc, char** argv, struct sqlite3* db) {
 
     int rc;
 
-    printf("%s\n", sql.str);
-
     rc = sqlite3_prepare_v2(db, sql.str, sql.len, &stmt, NULL);
     if (rc != SQLITE_OK) {
         log_print(ERR, "failed to prepare sql statement:");
