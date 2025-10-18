@@ -17,7 +17,6 @@
  */
 
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 
 #include <sqlite3.h>
@@ -27,8 +26,8 @@
 #include "db.h"
 #include "log.h"
 
-static void print_help_and_exit(FILE *stream, int rc) {
-    const char *help =
+static void print_help(void) {
+    static const char help[] =
         "Usage:\n"
         "    cclip delete [-s] ID\n"
         "\n"
@@ -37,12 +36,14 @@ static void print_help_and_exit(FILE *stream, int rc) {
         "    ID  Entry id to delete (- to read from stdin)\n"
     ;
 
-    fprintf(stream, "%s", help);
-    exit(rc);
+    fputs(help, stdout);
 }
 
 int action_delete(int argc, char** argv, struct sqlite3* db) {
+    int retcode = 0;
     bool secure_delete = false;
+
+    sqlite3_stmt* stmt = NULL;
 
     int opt;
     optreset = 1;
@@ -53,17 +54,20 @@ int action_delete(int argc, char** argv, struct sqlite3* db) {
             secure_delete = true;
             break;
         case 'h':
-            print_help_and_exit(stdout, 0);
-            break;
+            print_help();
+            goto out;
         case '?':
             log_print(ERR, "unknown option: %c", optopt);
-            break;
+            retcode = 1;
+            goto out;
         case ':':
             log_print(ERR, "missing arg for %c", optopt);
-            break;
+            retcode = 1;
+            goto out;
         default:
             log_print(ERR, "error while parsing command line options");
-            break;
+            retcode = 1;
+            goto out;
         }
     }
     argc = argc - optind;
@@ -72,30 +76,32 @@ int action_delete(int argc, char** argv, struct sqlite3* db) {
     char* id_str;
     if (argc < 1) {
         log_print(ERR, "not enough arguments");
-        return 1;
+        retcode = 1;
+        goto out;
     } else if (argc == 1) {
         id_str = argv[0];
     }  else {
         log_print(ERR, "extra arguments on the command line");
-        return 1;
+        retcode = 1;
+        goto out;
     }
 
     int64_t id;
     if (!get_id(id_str, &id)) {
-        return 1;
+        retcode = 1;
+        goto out;
     }
 
     if (secure_delete && !db_set_secure_delete(db, true)) {
-        return 1;
+        retcode = 1;
+        goto out;
     }
 
-    const char* sql = "DELETE FROM history WHERE rowid = ?";
-
-    sqlite3_stmt* stmt;
-    int ret = sqlite3_prepare(db, sql, -1, &stmt, NULL);
+    int ret = sqlite3_prepare(db, "DELETE FROM history WHERE id = ?", -1, &stmt, NULL);
     if (ret != SQLITE_OK) {
         log_print(ERR, "failed to prepare statement: %s", sqlite3_errmsg(db));
-        return 1;
+        retcode = 1;
+        goto out;
     }
 
     sqlite3_bind_int64(stmt, 1, id);
@@ -104,13 +110,17 @@ int action_delete(int argc, char** argv, struct sqlite3* db) {
     if (ret == SQLITE_DONE) {
         if (sqlite3_changes(db) == 0) {
             log_print(ERR, "table was not modified, does id %li exist?", id);
-            return 1;
+            retcode = 1;
+            goto out;
         }
     } else {
         log_print(ERR, "sqlite error: %s", sqlite3_errmsg(db));
-        return 1;
+        retcode = 1;
+        goto out;
     }
 
-    return 0;
+out:
+    sqlite3_finalize(stmt);
+    return retcode;
 }
 
