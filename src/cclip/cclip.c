@@ -138,6 +138,19 @@ int main(int argc, char** argv) {
         goto cleanup;
     };
 
+    const int user_version = db_get_user_version(db);
+    if (user_version < DB_USER_SCHEMA_VERSION) {
+        log_print(ERR, "db version %d is older than the version this cclip can work with (%d)",
+                  user_version, DB_USER_SCHEMA_VERSION);
+        exit_status = 1;
+        goto cleanup;
+    } else if (user_version > DB_USER_SCHEMA_VERSION) {
+        log_print(ERR, "db version %d is newer than the version this cclip can work with (%d)",
+                  user_version, DB_USER_SCHEMA_VERSION);
+        exit_status = 1;
+        goto cleanup;
+    }
+
     action_func_t* action = match_action(argv[0]);
     if (action == NULL) {
         log_print(ERR, "invalid action: %s", argv[0]);
