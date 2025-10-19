@@ -80,7 +80,7 @@
  *
  *     PRIMARY KEY ( tag_id, entry_id ),
  *     FOREIGN KEY ( entry_id ) REFERENCES history ( id ) ON DELETE CASCADE,
- *     FOREIGN KEY ( tag_id ) REFERENCES tags ( id ) ON DELETE CASCADE
+ *     FOREIGN KEY ( tag_id ) REFERENCES tags ( id ) ON DELETE RESTRICT
  * ) WITHOUT ROWID;
  *
  * CREATE TRIGGER cleanup_orphaned_tags AFTER DELETE ON history_tags FOR EACH ROW BEGIN
@@ -195,7 +195,7 @@ bool db_init(struct sqlite3* db) {
 
             PRIMARY KEY ( tag_id, entry_id ),
             FOREIGN KEY ( entry_id ) REFERENCES history ( id ) ON DELETE CASCADE,
-            FOREIGN KEY ( tag_id ) REFERENCES tags ( id ) ON DELETE CASCADE
+            FOREIGN KEY ( tag_id ) REFERENCES tags ( id ) ON DELETE RESTRICT
         ) WITHOUT ROWID;
 
         CREATE TRIGGER cleanup_orphaned_tags AFTER DELETE ON history_tags FOR EACH ROW BEGIN
@@ -315,7 +315,7 @@ static bool migrate_from_2_to_3(struct sqlite3* db) {
 
             PRIMARY KEY ( tag_id, entry_id ),
             FOREIGN KEY ( entry_id ) REFERENCES new_history ( id ) ON DELETE CASCADE,
-            FOREIGN KEY ( tag_id ) REFERENCES tags ( id ) ON DELETE CASCADE
+            FOREIGN KEY ( tag_id ) REFERENCES tags ( id ) ON DELETE RESTRICT
         ) WITHOUT ROWID;
 
         CREATE TRIGGER cleanup_orphaned_tags AFTER DELETE ON history_tags FOR EACH ROW BEGIN
