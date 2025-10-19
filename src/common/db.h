@@ -66,3 +66,6 @@ bool db_migrate(struct sqlite3* db, int32_t from, int32_t to);
 /* tries to prepare statement and logs errors */
 bool db_prepare_stmt(struct sqlite3* db, const char* sql, struct sqlite3_stmt** stmt);
 
+#define STMT_BIND(stmt, type, name, ...) \
+    sqlite3_bind_##type((stmt), sqlite3_bind_parameter_index((stmt), (name)), ##__VA_ARGS__)
+

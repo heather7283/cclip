@@ -88,21 +88,21 @@ int action_get(int argc, char** argv, struct sqlite3* db) {
         goto out;
     }
 
-    int64_t id;
-    if (!get_id(id_str, &id)) {
+    int64_t entry_id;
+    if (!get_id(id_str, &entry_id)) {
         retcode = 1;
         goto out;
     }
 
     if (fields_str == NULL) {
-        const char* sql = "SELECT data FROM history WHERE id = ?";
+        const char* sql = "SELECT data FROM history WHERE id = @entry_id";
 
         if (!db_prepare_stmt(db, sql, &stmt)) {
             retcode = 1;
             goto out;
         }
 
-        sqlite3_bind_int64(stmt, 1, id);
+        STMT_BIND(stmt, int64, "@entry_id", entry_id);
 
         int ret = sqlite3_step(stmt);
         if (ret == SQLITE_ROW) {
@@ -112,7 +112,7 @@ int action_get(int argc, char** argv, struct sqlite3* db) {
             };
             writev_full(1, &iov, 1);
         } else if (ret == SQLITE_DONE) {
-            log_print(ERR, "no entry found with id %li", id);
+            log_print(ERR, "no entry found with id %li", entry_id);
             retcode = 1;
             goto out;
         } else {
@@ -170,7 +170,7 @@ int action_get(int argc, char** argv, struct sqlite3* db) {
             string_append(&sql, " LEFT JOIN tags AS t ON ht.tag_id = t.id ");
         }
 
-        string_append(&sql, " WHERE h.id = ? ");
+        string_append(&sql, " WHERE h.id = @entry_id ");
 
         if (has_field_tags) {
             string_append(&sql, " GROUP BY h.id ");
@@ -183,7 +183,7 @@ int action_get(int argc, char** argv, struct sqlite3* db) {
             goto out;
         }
 
-        sqlite3_bind_int64(stmt, 1, id);
+        STMT_BIND(stmt, int64, "@entry_id", entry_id);
 
         ret = sqlite3_step(stmt);
         if (ret == SQLITE_ROW) {
@@ -202,7 +202,7 @@ int action_get(int argc, char** argv, struct sqlite3* db) {
 
             writev_full(1, iov, ncols * 2);
         } else if (ret == SQLITE_DONE) {
-            log_print(ERR, "no entry found with id %li", id);
+            log_print(ERR, "no entry found with id %li", entry_id);
             retcode = 1;
             goto out;
         } else {

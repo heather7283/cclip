@@ -154,7 +154,7 @@ int action_list(int argc, char** argv, struct sqlite3* db) {
                     SELECT ht2.entry_id
                     FROM history_tags AS ht2
                     INNER JOIN tags AS t2 ON ht2.tag_id = t2.id
-                    WHERE t2.name = ?
+                    WHERE t2.name = @tag_name
                 )
             );
             string_appendn(&sql, stupid_filter, strlen(stupid_filter));
@@ -175,7 +175,7 @@ int action_list(int argc, char** argv, struct sqlite3* db) {
     }
 
     if (tag != NULL) {
-        sqlite3_bind_text(stmt, 1, tag, -1, SQLITE_STATIC);
+        STMT_BIND(stmt, text, "@tag_name", tag, -1, SQLITE_STATIC);
     }
 
     /* field + tab + field + tab + field + newline */

@@ -101,8 +101,8 @@ int action_tag(int argc, char** argv, struct sqlite3* db) {
         goto out;
     }
 
-    int64_t id;
-    if (!get_id(id_str, &id)) {
+    int64_t entry_id;
+    if (!get_id(id_str, &entry_id)) {
         retcode = 1;
         goto out;
     }
@@ -112,8 +112,8 @@ int action_tag(int argc, char** argv, struct sqlite3* db) {
         const char* sql;
         if (tag_str != NULL) {
             sql = TOSTRING(
-                DELETE FROM history_tags WHERE entry_id = ? AND tag_id = (
-                    SELECT id FROM tags WHERE name = ?
+                DELETE FROM history_tags WHERE entry_id = @entry_id AND tag_id = (
+                    SELECT id FROM tags WHERE name = @tag_name
                 );
             );
         } else {
@@ -127,9 +127,9 @@ int action_tag(int argc, char** argv, struct sqlite3* db) {
             goto out;
         }
 
-        sqlite3_bind_int64(stmt, 1, id);
+        STMT_BIND(stmt, int64, "@entry_id", entry_id);
         if (tag_str != NULL) {
-            sqlite3_bind_text(stmt, 2, tag_str, -1, SQLITE_STATIC);
+            STMT_BIND(stmt, text, "@tag_name", tag_str, -1, SQLITE_STATIC);
         }
 
         ret = sqlite3_step(stmt);
@@ -146,7 +146,7 @@ int action_tag(int argc, char** argv, struct sqlite3* db) {
         }
     } else /* if (!delete_tag) */ {
         const char* sql_insert_into_tags = TOSTRING(
-            INSERT OR IGNORE INTO tags ( name ) VALUES ( ? );
+            INSERT OR IGNORE INTO tags ( name ) VALUES ( @tag_name );
         );
 
         if (!db_prepare_stmt(db, sql_insert_into_tags, &stmt)) {
@@ -154,7 +154,7 @@ int action_tag(int argc, char** argv, struct sqlite3* db) {
             goto out;
         }
 
-        sqlite3_bind_text(stmt, 1, tag_str, -1, SQLITE_STATIC);
+        STMT_BIND(stmt, text, "@tag_name", tag_str, -1, SQLITE_STATIC);
 
         ret = sqlite3_step(stmt);
         if (ret != SQLITE_DONE) {
@@ -167,8 +167,7 @@ int action_tag(int argc, char** argv, struct sqlite3* db) {
 
         const char* sql_insert_into_history_tags = TOSTRING(
             INSERT INTO history_tags ( tag_id, entry_id ) VALUES (
-                ( SELECT id FROM tags WHERE name = ? ),
-                ?
+                ( SELECT id FROM tags WHERE name = @tag_name ), @entry_id
             );
         );
 
@@ -177,8 +176,8 @@ int action_tag(int argc, char** argv, struct sqlite3* db) {
             goto out;
         }
 
-        sqlite3_bind_text(stmt, 1, tag_str, -1, SQLITE_STATIC);
-        sqlite3_bind_int64(stmt, 2, id);
+        STMT_BIND(stmt, text, "@tag_name", tag_str, -1, SQLITE_STATIC);
+        STMT_BIND(stmt, int64, "@entry_id", entry_id);
 
         ret = sqlite3_step(stmt);
         if (ret != SQLITE_DONE) {

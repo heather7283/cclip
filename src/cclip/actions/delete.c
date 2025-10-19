@@ -86,8 +86,8 @@ int action_delete(int argc, char** argv, struct sqlite3* db) {
         goto out;
     }
 
-    int64_t id;
-    if (!get_id(id_str, &id)) {
+    int64_t entry_id;
+    if (!get_id(id_str, &entry_id)) {
         retcode = 1;
         goto out;
     }
@@ -97,16 +97,16 @@ int action_delete(int argc, char** argv, struct sqlite3* db) {
         goto out;
     }
 
-    if (!db_prepare_stmt(db, "DELETE FROM history WHERE id = ?", &stmt)) {
+    if (!db_prepare_stmt(db, "DELETE FROM history WHERE id = @entry_id", &stmt)) {
         retcode = 1;
         goto out;
     }
 
-    sqlite3_bind_int64(stmt, 1, id);
+    STMT_BIND(stmt, int64, "@entry_id", entry_id);
 
     if (sqlite3_step(stmt) == SQLITE_DONE) {
         if (sqlite3_changes(db) == 0) {
-            log_print(ERR, "table was not modified, does id %li exist?", id);
+            log_print(ERR, "table was not modified, does id %li exist?", entry_id);
             retcode = 1;
             goto out;
         }
