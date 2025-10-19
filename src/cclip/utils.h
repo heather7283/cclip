@@ -50,3 +50,10 @@ int build_field_list(char* raw_list, enum select_fields fields[SELECT_FIELDS_COU
  */
 bool writev_full(int fd, struct iovec *iov, int iovcnt);
 
+/*
+ * Disallow non-printable ASCII in tags,
+ * also check if there is at least one non-space character.
+ * TODO: make this more sane
+ */
+bool is_tag_valid(const char* tag);
+

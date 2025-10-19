@@ -143,3 +143,19 @@ bool writev_full(int fd, struct iovec *iov, int iovcnt) {
     return true;
 }
 
+bool is_tag_valid(const char* tag) {
+    bool has_nonspace = false;
+    for (const char* p = tag; *p != '\0'; p++) {
+        const char c = *p;
+        if (c < 0x20 || c > 0x7E || c == ',') {
+            return false;
+        } else if (c == ' ') {
+            continue;
+        } else {
+            has_nonspace = true;
+        }
+    }
+
+    return has_nonspace;
+}
+
