@@ -430,3 +430,15 @@ rollback:
     return false;
 }
 
+bool db_prepare_stmt(struct sqlite3* db, const char* sql, struct sqlite3_stmt** stmt) {
+    int ret = sqlite3_prepare_v2(db, sql, -1, stmt, NULL);
+    if (ret != SQLITE_OK) {
+        log_print(ERR, "failed to prepare SQL statement!");
+        log_print(ERR, "statement: %s", sql);
+        log_print(ERR, "reason: %s", sqlite3_errmsg(db));
+        return false;
+    }
+
+    return true;
+}
+

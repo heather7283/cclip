@@ -61,3 +61,8 @@ bool db_set_secure_delete(struct sqlite3* db, bool enable);
 /* perform migration */
 bool db_migrate(struct sqlite3* db, int32_t from, int32_t to);
 
+/* some helpers for common sqlite operations */
+
+/* tries to prepare statement and logs errors */
+bool db_prepare_stmt(struct sqlite3* db, const char* sql, struct sqlite3_stmt** stmt);
+

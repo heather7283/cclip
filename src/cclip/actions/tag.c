@@ -22,6 +22,7 @@
 #include <sqlite3.h>
 
 #include "../utils.h"
+#include "db.h"
 #include "getopt.h"
 #include "macros.h"
 #include "log.h"
@@ -106,6 +107,7 @@ int action_tag(int argc, char** argv, struct sqlite3* db) {
         goto out;
     }
 
+    int ret;
     if (delete_tag) {
         const char* sql;
         if (tag_str != NULL) {
@@ -120,11 +122,7 @@ int action_tag(int argc, char** argv, struct sqlite3* db) {
             );
         }
 
-        int ret = sqlite3_prepare(db, sql, -1, &stmt, NULL);
-        if (ret != SQLITE_OK) {
-            log_print(ERR, "failed to prepare sql statement");
-            log_print(ERR, "source: %s", sql);
-            log_print(ERR, "reason: %s", sqlite3_errmsg(db));
+        if (!db_prepare_stmt(db, sql, &stmt)) {
             retcode = 1;
             goto out;
         }
@@ -151,11 +149,7 @@ int action_tag(int argc, char** argv, struct sqlite3* db) {
             INSERT OR IGNORE INTO tags ( name ) VALUES ( ? );
         );
 
-        int ret = sqlite3_prepare(db, sql_insert_into_tags, -1, &stmt, NULL);
-        if (ret != SQLITE_OK) {
-            log_print(ERR, "failed to prepare sql statement");
-            log_print(ERR, "source: %s", sql_insert_into_tags);
-            log_print(ERR, "reason: %s", sqlite3_errmsg(db));
+        if (!db_prepare_stmt(db, sql_insert_into_tags, &stmt)) {
             retcode = 1;
             goto out;
         }
@@ -178,11 +172,7 @@ int action_tag(int argc, char** argv, struct sqlite3* db) {
             );
         );
 
-        ret = sqlite3_prepare(db, sql_insert_into_history_tags, -1, &stmt, NULL);
-        if (ret != SQLITE_OK) {
-            log_print(ERR, "failed to prepare sql statement");
-            log_print(ERR, "source: %s", sql_insert_into_tags);
-            log_print(ERR, "reason: %s", sqlite3_errmsg(db));
+        if (!db_prepare_stmt(db, sql_insert_into_history_tags, &stmt)) {
             retcode = 1;
             goto out;
         }

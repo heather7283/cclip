@@ -25,6 +25,7 @@
 #include <sqlite3.h>
 
 #include "../utils.h"
+#include "db.h"
 #include "getopt.h"
 #include "log.h"
 
@@ -78,15 +79,12 @@ int action_tags(int argc, char** argv, struct sqlite3* db) {
 
     const char* sql = "SELECT name FROM tags";
 
-    int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
-    if (rc != SQLITE_OK) {
-        log_print(ERR, "failed to prepare sql statement:");
-        log_print(ERR, "source: %s", sql);
-        log_print(ERR, "reason: %s", sqlite3_errmsg(db));
+    if (!db_prepare_stmt(db, sql, &stmt)) {
         retcode = 1;
         goto out;
     }
 
+    int rc;
     struct iovec iov[2];
     while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
         iov[0].iov_base = (void *)sqlite3_column_blob(stmt, 0);

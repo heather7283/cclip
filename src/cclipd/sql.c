@@ -23,6 +23,7 @@
 #include <sqlite3.h>
 
 #include "cclipd.h"
+#include "db.h"
 #include "sql.h"
 #include "config.h"
 #include "preview.h"
@@ -81,14 +82,8 @@ static struct {
 };
 
 bool prepare_statements(void) {
-    int rc;
-
     for (size_t i = 0; i < SIZEOF_ARRAY(statements); i++) {
-        rc = sqlite3_prepare_v2(db, statements[i].src, -1, &statements[i].stmt, NULL);
-        if (rc != SQLITE_OK) {
-            log_print(ERR, "failed to prepare sqlite statement:");
-            log_print(ERR, "%s", statements[i].src);
-            log_print(ERR, "reason: %s", sqlite3_errmsg(db));
+        if (!db_prepare_stmt(db, statements[i].src, &statements[i].stmt)) {
             return false;
         }
     }

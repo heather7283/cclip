@@ -97,17 +97,14 @@ int action_delete(int argc, char** argv, struct sqlite3* db) {
         goto out;
     }
 
-    int ret = sqlite3_prepare(db, "DELETE FROM history WHERE id = ?", -1, &stmt, NULL);
-    if (ret != SQLITE_OK) {
-        log_print(ERR, "failed to prepare statement: %s", sqlite3_errmsg(db));
+    if (!db_prepare_stmt(db, "DELETE FROM history WHERE id = ?", &stmt)) {
         retcode = 1;
         goto out;
     }
 
     sqlite3_bind_int64(stmt, 1, id);
 
-    ret = sqlite3_step(stmt);
-    if (ret == SQLITE_DONE) {
+    if (sqlite3_step(stmt) == SQLITE_DONE) {
         if (sqlite3_changes(db) == 0) {
             log_print(ERR, "table was not modified, does id %li exist?", id);
             retcode = 1;

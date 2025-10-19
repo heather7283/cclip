@@ -27,6 +27,7 @@
 
 #include "../utils.h"
 #include "collections/string.h"
+#include "db.h"
 #include "macros.h"
 #include "getopt.h"
 #include "log.h"
@@ -168,11 +169,7 @@ int action_list(int argc, char** argv, struct sqlite3* db) {
 
     int rc;
 
-    rc = sqlite3_prepare_v2(db, sql.str, sql.len, &stmt, NULL);
-    if (rc != SQLITE_OK) {
-        log_print(ERR, "failed to prepare sql statement:");
-        log_print(ERR, "source: %s", sql.str);
-        log_print(ERR, "reason: %s", sqlite3_errmsg(db));
+    if (!db_prepare_stmt(db, sql.str, &stmt)) {
         retcode = 1;
         goto out;
     }

@@ -23,6 +23,7 @@
 
 #include "../utils.h"
 #include "collections/string.h"
+#include "db.h"
 #include "getopt.h"
 #include "log.h"
 
@@ -96,8 +97,7 @@ int action_get(int argc, char** argv, struct sqlite3* db) {
     if (fields_str == NULL) {
         const char* sql = "SELECT data FROM history WHERE id = ?";
 
-        if (sqlite3_prepare(db, sql, -1, &stmt, NULL) != SQLITE_OK) {
-            log_print(ERR, "failed to prepare statement: %s", sqlite3_errmsg(db));
+        if (!db_prepare_stmt(db, sql, &stmt)) {
             retcode = 1;
             goto out;
         }
@@ -178,11 +178,7 @@ int action_get(int argc, char** argv, struct sqlite3* db) {
 
         int ret;
 
-        ret = sqlite3_prepare_v2(db, sql.str, sql.len, &stmt, NULL);
-        if (ret != SQLITE_OK) {
-            log_print(ERR, "failed to prepare sql statement");
-            log_print(ERR, "source: %s", sql.str);
-            log_print(ERR, "reason: %s", sqlite3_errmsg(db));
+        if (!db_prepare_stmt(db, sql.str, &stmt)) {
             retcode = 1;
             goto out;
         }
