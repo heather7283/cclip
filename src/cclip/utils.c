@@ -64,7 +64,7 @@ int build_field_list(char* raw_list, enum select_fields out_fields[SELECT_FIELDS
         DO(MIME_TYPE, "mime_type", "mime", "type") \
         DO(DATA_SIZE, "data_size", "size") \
         DO(TIMESTAMP, "timestamp", "time") \
-        DO(TAGS, "tags")
+        DO(TAGS, "tags", "tag")
 
     #define DEFINE_NAME_ARRAY(name, ...) \
         static const char* name##_names[] = { __VA_ARGS__ };
