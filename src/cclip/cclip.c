@@ -34,6 +34,7 @@
     DO(get) \
     DO(list) \
     DO(tag) \
+    DO(tags) \
     DO(vacuum) \
     DO(wipe) \
 
