@@ -95,7 +95,7 @@ int action_tag(int argc, char** argv, struct sqlite3* db) {
         goto out;
     }
 
-    if (tag_str != NULL && !is_tag_valid(tag_str)) {
+    if (tag_str != NULL && !delete_tag && !is_tag_valid(tag_str)) {
         log_print(ERR, "invalid tag");
         retcode = 1;
         goto out;
