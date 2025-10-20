@@ -106,7 +106,7 @@ int action_list(int argc, char** argv, struct sqlite3* db) {
     struct string sql = {0};
     string_reserve(&sql, 512);
 
-    string_append(&sql, "SELECT");
+    string_append(&sql, "SELECT DISTINCT");
 
     bool print_tags = false;
     for (int i = 0; i < nfields; i++) {
