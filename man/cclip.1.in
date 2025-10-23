@@ -90,6 +90,12 @@ if \fITAG\fP is specified, otherwise remove ALL tags from an entry.
 .RE
 
 .PP
+\fBtags\fP
+.RS 4
+Lists all tags present in the database to stdout, separated by newlines.
+.RE
+
+.PP
 \fBwipe\fP [-ts]
 .RS 4
 Remove all entries from the database. This preserves tagged entries by default.
