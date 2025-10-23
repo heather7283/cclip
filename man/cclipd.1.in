@@ -35,8 +35,9 @@ Minimal clipboard entry size. Smaller entries will be ignored.
 Default is 1 (accept everything).
 .TP 4
 .BI \-c " ENTRIES"
-Maximum number of entries to keep in the database. \
-Oldest untagged entries exceeding this limit are automatically deleted.
+Maximum number of untagged entries to keep in the database. \
+Oldest untagged entries exceeding this limit are automatically deleted. \
+Tagged entries are never automatically deleted.
 .br
 Default is 1000.
 .TP 4
