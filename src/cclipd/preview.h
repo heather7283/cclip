@@ -20,5 +20,5 @@
 
 #include <stddef.h>
 
-char* generate_preview(const void* const data, size_t data_size, const char* const mime_type);
+char* generate_preview(const void* data, size_t data_size, const char* mime_type);
 

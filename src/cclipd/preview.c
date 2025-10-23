@@ -15,11 +15,13 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 #include <stdbool.h>
 #include <fnmatch.h>
 #include <inttypes.h>
 
 #include "preview.h"
+#include "macros.h"
 #include "config.h"
 #include "log.h"
 #include "xmalloc.h"
@@ -124,10 +126,10 @@ static void generate_text_preview(char* out_buf, const char* const in_buf,
 static void generate_binary_preview(char* const out_buf, size_t preview_len,
                                     size_t data_size, const char* const mime_type) {
     static const char* units[] = {"B", "KiB", "MiB"};
-    int units_index = 0;
+    unsigned int units_index = 0;
     double size = data_size;
 
-    while (size >= 1024 && units_index < 2) {
+    while (size >= 1024 && units_index < SIZEOF_ARRAY(units) - 1) {
         size /= 1024;
         units_index += 1;
     }
