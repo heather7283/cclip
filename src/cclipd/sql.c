@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 #include <sys/wait.h>
 #include <unistd.h>
 #include <string.h>
@@ -23,6 +24,7 @@
 #include <sqlite3.h>
 
 #include "cclipd.h"
+#include "db.h"
 #include "sql.h"
 #include "config.h"
 #include "preview.h"
@@ -54,16 +56,19 @@ static struct {
 } statements[] = {
     [STMT_INSERT] = { .src = TOSTRING(
         INSERT INTO history ( data, data_hash, data_size, preview, mime_type, timestamp )
-        VALUES ( ?, ?, ?, ?, ?, ? )
-        ON CONFLICT (data_hash) DO UPDATE SET timestamp=excluded.timestamp
+        VALUES ( @data, @data_hash, @data_size, @preview, @mime_type, @timestamp )
+        ON CONFLICT ( data_hash ) DO UPDATE SET timestamp=excluded.timestamp
     )},
     [STMT_DELETE_OLDEST] = { .src = TOSTRING(
-        DELETE FROM history WHERE rowid IN (
-            SELECT rowid FROM history
-            WHERE tag IS NULL
+        DELETE FROM history
+        WHERE id IN (
+            SELECT id FROM history
+            WHERE id NOT IN (
+                SELECT entry_id FROM history_tags
+            )
             ORDER BY timestamp DESC
-            LIMIT -1 OFFSET ?
-        )
+            LIMIT -1 OFFSET @keep_count
+        );
     )},
     [STMT_BEGIN] = { .src = TOSTRING(
         BEGIN
@@ -76,25 +81,9 @@ static struct {
     )},
 };
 
-/* TODO: use named parameters instead of this nonsense */
-enum {
-    DATA_LOCATION      = 1,
-    DATA_HASH_LOCATION = 2,
-    DATA_SIZE_LOCATION = 3,
-    PREVIEW_LOCATION   = 4,
-    MIME_TYPE_LOCATION = 5,
-    TIMESTAMP_LOCATION = 6,
-};
-
 bool prepare_statements(void) {
-    int rc;
-
     for (size_t i = 0; i < SIZEOF_ARRAY(statements); i++) {
-        rc = sqlite3_prepare_v2(db, statements[i].src, -1, &statements[i].stmt, NULL);
-        if (rc != SQLITE_OK) {
-            log_print(ERR, "failed to prepare sqlite statement:");
-            log_print(ERR, "%s", statements[i].src);
-            log_print(ERR, "reason: %s", sqlite3_errmsg(db));
+        if (!db_prepare_stmt(db, statements[i].src, &statements[i].stmt)) {
             return false;
         }
     }
@@ -158,12 +147,12 @@ static bool do_insert(const struct db_entry* e) {
     struct sqlite3_stmt* const stmt = statements[STMT_INSERT].stmt;
     bool ret = true;
 
-    sqlite3_bind_blob(stmt, DATA_LOCATION, e->data, e->data_size, SQLITE_STATIC);
-    sqlite3_bind_int64(stmt, DATA_HASH_LOCATION, *(int64_t *)&e->data_hash);
-    sqlite3_bind_int64(stmt, DATA_SIZE_LOCATION, e->data_size);
-    sqlite3_bind_text(stmt, PREVIEW_LOCATION, e->preview, -1, SQLITE_STATIC);
-    sqlite3_bind_text(stmt, MIME_TYPE_LOCATION, e->mime_type, -1, SQLITE_STATIC);
-    sqlite3_bind_int64(stmt, TIMESTAMP_LOCATION, e->timestamp);
+    STMT_BIND(stmt, blob, "@data", e->data, e->data_size, SQLITE_STATIC);
+    STMT_BIND(stmt, int64, "@data_hash", *(int64_t *)&e->data_hash);
+    STMT_BIND(stmt, int64, "@data_size", e->data_size);
+    STMT_BIND(stmt, text, "@preview", e->preview, -1, SQLITE_STATIC);
+    STMT_BIND(stmt, text, "@mime_type", e->mime_type, -1, SQLITE_STATIC);
+    STMT_BIND(stmt, int64, "@timestamp", e->timestamp);
 
     int rc = sqlite3_step(stmt);
     if (rc != SQLITE_DONE) {
@@ -178,17 +167,19 @@ static bool do_insert(const struct db_entry* e) {
     return ret;
 }
 
-static bool do_delete_oldest(int leave_count) {
+static bool do_delete_oldest(int keep_count) {
     struct sqlite3_stmt* const stmt = statements[STMT_DELETE_OLDEST].stmt;
     bool ret = true;
 
-    sqlite3_bind_int(stmt, 1, leave_count);
+    STMT_BIND(stmt, int, "@keep_count", keep_count);
 
+    log_print(TRACE, "sql: deleting oldest entries");
     int rc = sqlite3_step(stmt);
     if (rc != SQLITE_DONE) {
         log_print(ERR, "sql: failed to delete oldest entries: %s", sqlite3_errmsg(db));
         ret = false;
     }
+    log_print(TRACE, "sql: %d oldest entries deleted", sqlite3_changes(db));
 
     sqlite3_reset(stmt);
     sqlite3_clear_bindings(stmt);
@@ -215,8 +206,15 @@ bool insert_db_entry(const void* data, size_t data_size, const char* mime) {
     };
     if (!do_insert(&entry)) {
         goto rollback;
-    } else if (config.max_entries_count > 0 && !do_delete_oldest(config.max_entries_count)) {
-        goto rollback;
+    } else if (config.max_entries_count > 0) {
+        /* only run cleanup every `period` insertions */
+        const int period = 10;
+        static int counter = 0;
+        if (counter++ % period == 0) {
+            if (!do_delete_oldest(config.max_entries_count)) {
+                goto rollback;
+            }
+        }
     }
 
     if (!commit_transaction()) {

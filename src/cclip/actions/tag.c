@@ -17,34 +17,37 @@
  */
 
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
-#include <ctype.h>
 
 #include <sqlite3.h>
 
 #include "../utils.h"
+#include "db.h"
 #include "getopt.h"
+#include "macros.h"
 #include "log.h"
 
-static void print_help_and_exit(FILE *stream, int rc) {
-    const char *help =
+static void print_help(void) {
+    static const char help[] =
         "Usage:\n"
-        "    cclip tag -d ID\n"
         "    cclip tag ID TAG\n"
+        "    cclip tag -d ID [TAG]\n"
         "\n"
         "Command line options:\n"
-        "    -d      Delete the tag instead of adding\n"
-        "    ID      Entry id to tag (- to read from stdin)\n"
-        "    TAG     String to add as entry tag\n"
+        "    -d      Delete TAG from entry instead of adding.\n"
+        "            If TAG is missing, delete all tags from entry.\n"
+        "    ID      Entry id to tag or untag (- to read from stdin)\n"
+        "    TAG     Tag to add or (with -d) delete\n"
     ;
 
-    fprintf(stream, "%s", help);
-    exit(rc);
+    fputs(help, stdout);
 }
 
 int action_tag(int argc, char** argv, struct sqlite3* db) {
+    int retcode = 0;
     bool delete_tag = false;
+
+    struct sqlite3_stmt* stmt = NULL;
 
     int opt;
     optreset = 1;
@@ -55,90 +58,137 @@ int action_tag(int argc, char** argv, struct sqlite3* db) {
             delete_tag = true;
             break;
         case 'h':
-            print_help_and_exit(stdout, 0);
-            break;
+            print_help();
+            goto out;
         case '?':
             log_print(ERR, "unknown option: %c", optopt);
-            break;
+            retcode = 1;
+            goto out;
         case ':':
             log_print(ERR, "missing arg for %c", optopt);
-            break;
+            retcode = 1;
+            goto out;
         default:
             log_print(ERR, "error while parsing command line options");
-            break;
+            retcode = 1;
+            goto out;
         }
     }
     argc = argc - optind;
     argv = &argv[optind];
 
-    char* id_str;
-    char* tag_str;
+    char* id_str = NULL;
+    char* tag_str = NULL;
+    if (argc < 2) {
+        if (!delete_tag) {
+            log_print(ERR, "not enough arguments");
+            retcode = 1;
+            goto out;
+        }
+        id_str = argv[0];
+    } else if (argc == 2) {
+        id_str = argv[0];
+        tag_str = argv[1];
+    } else {
+        log_print(ERR, "extra arguments on the command line");
+        retcode = 1;
+        goto out;
+    }
+
+    if (tag_str != NULL && !delete_tag && !is_tag_valid(tag_str)) {
+        log_print(ERR, "invalid tag");
+        retcode = 1;
+        goto out;
+    }
+
+    int64_t entry_id;
+    if (!get_id(id_str, &entry_id)) {
+        retcode = 1;
+        goto out;
+    }
+
+    int ret;
     if (delete_tag) {
-        if (argc < 1) {
-            log_print(ERR, "not enough arguments");
-            return 1;
-        } else if (argc == 1) {
-            id_str = argv[0];
-            tag_str = NULL;
+        const char* sql;
+        if (tag_str != NULL) {
+            sql = TOSTRING(
+                DELETE FROM history_tags WHERE entry_id = @entry_id AND tag_id = (
+                    SELECT id FROM tags WHERE name = @tag_name
+                );
+            );
         } else {
-            log_print(ERR, "extra arguments on the command line");
-            return 1;
+            sql = TOSTRING(
+                DELETE FROM history_tags WHERE entry_id = ?;
+            );
         }
-    } else {
-        if (argc < 2) {
-            log_print(ERR, "not enough arguments");
-            return 1;
-        } else if (argc == 2) {
-            id_str = argv[0];
-            tag_str = argv[1];
-        } else {
-            log_print(ERR, "extra arguments on the command line");
-            return 1;
+
+        if (!db_prepare_stmt(db, sql, &stmt)) {
+            retcode = 1;
+            goto out;
+        }
+
+        STMT_BIND(stmt, int64, "@entry_id", entry_id);
+        if (tag_str != NULL) {
+            STMT_BIND(stmt, text, "@tag_name", tag_str, -1, SQLITE_STATIC);
+        }
+
+        ret = sqlite3_step(stmt);
+        if (ret != SQLITE_DONE) {
+            log_print(ERR, "failed to delete tags from entry: %s", sqlite3_errmsg(db));
+            retcode = 1;
+            goto out;
+        }
+
+        if (sqlite3_changes(db) < 1) {
+            log_print(ERR, "table was not modified, either tag or entry do not exist");
+            retcode = 1;
+            goto out;
+        }
+    } else /* if (!delete_tag) */ {
+        const char* sql_insert_into_tags = TOSTRING(
+            INSERT OR IGNORE INTO tags ( name ) VALUES ( @tag_name );
+        );
+
+        if (!db_prepare_stmt(db, sql_insert_into_tags, &stmt)) {
+            retcode = 1;
+            goto out;
+        }
+
+        STMT_BIND(stmt, text, "@tag_name", tag_str, -1, SQLITE_STATIC);
+
+        ret = sqlite3_step(stmt);
+        if (ret != SQLITE_DONE) {
+            log_print(ERR, "failed to add tag into tags table: %s", sqlite3_errmsg(db));
+            retcode = 1;
+            goto out;
+        }
+
+        sqlite3_finalize(stmt);
+
+        const char* sql_insert_into_history_tags = TOSTRING(
+            INSERT INTO history_tags ( tag_id, entry_id ) VALUES (
+                ( SELECT id FROM tags WHERE name = @tag_name ), @entry_id
+            );
+        );
+
+        if (!db_prepare_stmt(db, sql_insert_into_history_tags, &stmt)) {
+            retcode = 1;
+            goto out;
+        }
+
+        STMT_BIND(stmt, text, "@tag_name", tag_str, -1, SQLITE_STATIC);
+        STMT_BIND(stmt, int64, "@entry_id", entry_id);
+
+        ret = sqlite3_step(stmt);
+        if (ret != SQLITE_DONE) {
+            log_print(ERR, "failed to add tag to entry: %s (duplicate tag?)", sqlite3_errmsg(db));
+            retcode = 1;
+            goto out;
         }
     }
 
-    int64_t id;
-    if (!get_id(id_str, &id)) {
-        return 1;
-    }
-
-    if (tag_str != NULL) {
-        bool tag_str_valid = false;
-        for (const char *p = tag_str; *p != '\0'; p++) {
-            if (!isspace(*p)) {
-                tag_str_valid = true;
-                break;
-            }
-        }
-        if (!tag_str_valid) {
-            log_print(ERR, "tag cannot be empty or contain only whitespace");
-            return 1;
-        }
-    }
-
-    const char* sql = "UPDATE history SET tag = ? WHERE rowid = ?";
-
-    sqlite3_stmt* stmt;
-    int ret = sqlite3_prepare(db, sql, -1, &stmt, NULL);
-    if (ret != SQLITE_OK) {
-        log_print(ERR, "sqlite error: %s", sqlite3_errmsg(db));
-        return 1;
-    }
-
-    sqlite3_bind_text(stmt, 1, tag_str, -1 /* null-terminated */, SQLITE_STATIC);
-    sqlite3_bind_int64(stmt, 2, id);
-
-    ret = sqlite3_step(stmt);
-    if (ret == SQLITE_DONE) {
-        if (sqlite3_changes(db) == 0) {
-            log_print(ERR, "table was not modified, does id %li exist?", id);
-            return 1;
-        }
-    } else {
-        log_print(ERR, "sqlite error: %s", sqlite3_errmsg(db));
-        return 1;
-    }
-
-    return 0;
+out:
+    sqlite3_finalize(stmt);
+    return retcode;
 }
 

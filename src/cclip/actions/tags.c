@@ -16,43 +16,41 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <stdio.h>
+#include <sys/uio.h>
+#include <limits.h>
 #include <string.h>
+#include <errno.h>
+#include <stdio.h>
 
 #include <sqlite3.h>
 
 #include "../utils.h"
-#include "getopt.h"
 #include "db.h"
+#include "getopt.h"
 #include "log.h"
 
 static void print_help(void) {
     static const char help[] =
         "Usage:\n"
-        "    cclip delete [-s] ID\n"
+        "    cclip tags\n"
         "\n"
         "Command line options:\n"
-        "    -s  Enable secure delete pragma\n"
-        "    ID  Entry id to delete (- to read from stdin)\n"
+        "    cclip tags does not take command line options\n"
     ;
 
     fputs(help, stdout);
 }
 
-int action_delete(int argc, char** argv, struct sqlite3* db) {
+int action_tags(int argc, char** argv, struct sqlite3* db) {
     int retcode = 0;
-    bool secure_delete = false;
 
-    sqlite3_stmt* stmt = NULL;
+    struct sqlite3_stmt* stmt = NULL;
 
     int opt;
     optreset = 1;
     optind = 0;
-    while ((opt = getopt(argc, argv, ":hs")) != -1) {
+    while ((opt = getopt(argc, argv, ":h")) != -1) {
         switch (opt) {
-        case 's':
-            secure_delete = true;
-            break;
         case 'h':
             print_help();
             goto out;
@@ -73,45 +71,36 @@ int action_delete(int argc, char** argv, struct sqlite3* db) {
     argc = argc - optind;
     argv = &argv[optind];
 
-    char* id_str;
-    if (argc < 1) {
-        log_print(ERR, "not enough arguments");
-        retcode = 1;
-        goto out;
-    } else if (argc == 1) {
-        id_str = argv[0];
-    }  else {
+    if (argc > 0) {
         log_print(ERR, "extra arguments on the command line");
         retcode = 1;
         goto out;
     }
 
-    int64_t entry_id;
-    if (!get_id(id_str, &entry_id)) {
+    const char* sql = "SELECT name FROM tags";
+
+    if (!db_prepare_stmt(db, sql, &stmt)) {
         retcode = 1;
         goto out;
     }
 
-    if (secure_delete && !db_set_secure_delete(db, true)) {
-        retcode = 1;
-        goto out;
-    }
+    int rc;
+    struct iovec iov[2];
+    while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
+        iov[0].iov_base = (void *)sqlite3_column_blob(stmt, 0);
+        iov[0].iov_len = sqlite3_column_bytes(stmt, 0);
 
-    if (!db_prepare_stmt(db, "DELETE FROM history WHERE id = @entry_id", &stmt)) {
-        retcode = 1;
-        goto out;
-    }
+        iov[1].iov_base = "\n";
+        iov[1].iov_len = 1;
 
-    STMT_BIND(stmt, int64, "@entry_id", entry_id);
-
-    if (sqlite3_step(stmt) == SQLITE_DONE) {
-        if (sqlite3_changes(db) == 0) {
-            log_print(ERR, "table was not modified, does id %li exist?", entry_id);
+        if (!writev_full(1, iov, 2)) {
+            log_print(ERR, "failed to write tag name: %s", strerror(errno));
             retcode = 1;
             goto out;
         }
-    } else {
-        log_print(ERR, "sqlite error: %s", sqlite3_errmsg(db));
+    }
+    if (rc != SQLITE_DONE) {
+        log_print(ERR, "failed to list tags: %s", sqlite3_errmsg(db));
         retcode = 1;
         goto out;
     }

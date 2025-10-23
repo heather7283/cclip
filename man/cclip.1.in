@@ -28,38 +28,88 @@ Print version and exit 0.
 
 .SH ACTIONS
 You must specify exactly one of the following actions:
-.TP 4
-.B list \fP[-t] [\fIFIELDS\fP]
-Prints information about all database entries to stdout. \
-Fields are separated with tabs, entries are separated with newlines. \
-If -t is specified, only print those entries that have a tag.
-.br
-Output format can be controlled by specifying list of comma-separated fields as FIELDS argument. \
-Available fields are rowid, preview, mime_type, data_size, timestamp, tag; \
-default is rowid,mime_type,preview.
-.TP 4
-.B get \fP\fIID\fP [\fIFIELDS\fP]
-Print saved clipboard entry with specified id to stdout. \
-If id is -, read it from stdin. If FIELDS specified, it is treated the same way as in \fBlist\fP.
-.TP 4
-.B delete \fP[-s] \fIID\fP
-Delete entry with specified id from database. If id is -, read it from stdin. \
-If -s is specified, enable secure delete sqlite pragma.
+
 .PP
-.B tag \fP\fIID\fP \fITAG\fP
-.br
-.B tag \fP-d \fIID\fP
+\fBlist\fP [-t] [-T \fITAG\fP] [\fIFIELDS\fP]
 .RS 4
-In the first form, add a tag specified as TAG to entry with specified id. \
-In the second form, remove a tag from entry with specified id. If id is -, read it from stdin.
+Prints information about all database entries to stdout.
+Fields are separated with tabs, entries are separated with newlines.
+
+.PP
+If -t is specified, only print those entries that have at least one tag.
+.br
+If -T is specified, only print those entries that have a matching \fITAG\fP.
+
+.PP
+Output format can be controlled by specifying a list of comma-separated fields as \fIFIELDS\fP.
+Available fields are (also applies to \fBget\fP, see below):
+.PD 0
+.IP \(bu 4
+id (alias: rowid)
+.IP \(bu 4
+preview
+.IP \(bu 4
+mime_type (aliases: mime, type)
+.IP \(bu 4
+data_size (alias: size)
+.IP \(bu 4
+timestamp (alias: time)
+.IP \(bu 4
+tags (alias: tag)
+.PD
+
+.PP
+If \fIFIELDS\fP argument is not specified, it defaults to \fIid,mime_type,preview\fP.
 .RE
-.TP 4
-.B wipe \fP[-ts]
-Remove all entries from database. This preserves tagged entries unless -t is specified. \
+
+.PP
+\fBget\fP \fIID\fP [\fIFIELDS\fP]
+.RS 4
+Print saved clipboard entry with specified \fIID\fP to stdout.
+If \fIID\fP is -, read it from stdin (this applies to all actions accepting an ID).
+If \fIFIELDS\fP is specified, it is treated the same way as in \fBlist\fP.
+.RE
+
+.PP
+\fBdelete\fP [-s] \fIID\fP
+.RS 4
+Delete entry with specified \fIID\fP from database.
+.PP
+If -s is specified, overwrites deleted entry with zeroes for security
+(this uses the secure_delete pragma provided by sqlite under the hood).
+.RE
+
+.PP
+\fBtag\fP \fIID\fP \fITAG\fP
+.br
+\fBtag\fP -d \fIID\fP \fI[TAG]\fP
+.RS 4
+In the first form, add a tag specified as \fITAG\fP to entry with specified \fIID\fP.
+In the second form, remove \fITAG\fP from entry with specified \fIID\fP
+if \fITAG\fP is specified, otherwise remove ALL tags from an entry.
+.RE
+
+.PP
+\fBtags\fP
+.RS 4
+Lists all tags present in the database to stdout, separated by newlines.
+.RE
+
+.PP
+\fBwipe\fP [-ts]
+.RS 4
+Remove all entries from the database. This preserves tagged entries by default.
+.PP
+If -t is specified, tagged entries are not preserved.
+.br
 If -s is specified, it is treated in the same way as in \fBdelete\fP.
-.TP 4
-.B vacuum
+.RE
+
+.PP
+\fBvacuum\fP
+.RS 4
 Rebuilds the database file, repacking it into a minimal amount of space.
+.RE
 
 .SH EXAMPLES
 Get most recently saved PNG image and display it with

@@ -34,6 +34,7 @@
     DO(get) \
     DO(list) \
     DO(tag) \
+    DO(tags) \
     DO(vacuum) \
     DO(wipe) \
 
@@ -138,6 +139,19 @@ int main(int argc, char** argv) {
         goto cleanup;
     };
 
+    const int user_version = db_get_user_version(db);
+    if (user_version < DB_USER_SCHEMA_VERSION) {
+        log_print(ERR, "db version %d is older than the version this cclip can work with (%d)",
+                  user_version, DB_USER_SCHEMA_VERSION);
+        exit_status = 1;
+        goto cleanup;
+    } else if (user_version > DB_USER_SCHEMA_VERSION) {
+        log_print(ERR, "db version %d is newer than the version this cclip can work with (%d)",
+                  user_version, DB_USER_SCHEMA_VERSION);
+        exit_status = 1;
+        goto cleanup;
+    }
+
     action_func_t* action = match_action(argv[0]);
     if (action == NULL) {
         log_print(ERR, "invalid action: %s", argv[0]);
@@ -148,9 +162,7 @@ int main(int argc, char** argv) {
     exit_status = action(argc, argv, db);
 
 cleanup:
-    if (sqlite3_close(db) != SQLITE_OK) {
-        log_print(WARN, "failed to close database connection, report this as a bug");
-    }
+    db_close(db);
     exit(exit_status);
 }
 

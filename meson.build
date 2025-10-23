@@ -65,6 +65,7 @@ cclip_sources = files([
     'src/cclip/actions/list.c',
     'src/cclip/actions/get.c',
     'src/cclip/actions/tag.c',
+    'src/cclip/actions/tags.c',
     'src/cclip/actions/delete.c',
     'src/cclip/actions/wipe.c',
     'src/cclip/actions/vacuum.c',

@@ -26,8 +26,8 @@
 #include "db.h"
 #include "log.h"
 
-static void print_help_and_exit(FILE *stream, int rc) {
-    const char *help =
+static void print_help(void) {
+    static const char help[] =
         "Usage:\n"
         "    cclip wipe [-ts]\n"
         "\n"
@@ -36,8 +36,7 @@ static void print_help_and_exit(FILE *stream, int rc) {
         "    -s  Enable secure delete pragma\n"
     ;
 
-    fprintf(stream, "%s", help);
-    exit(rc);
+    fputs(help, stdout);
 }
 
 int action_wipe(int argc, char** argv, struct sqlite3* db) {
@@ -56,7 +55,7 @@ int action_wipe(int argc, char** argv, struct sqlite3* db) {
             preserve_tagged = false;
             break;
         case 'h':
-            print_help_and_exit(stdout, 0);
+            print_help();
             break;
         case '?':
             log_print(ERR, "unknown option: %c", optopt);
@@ -83,7 +82,7 @@ int action_wipe(int argc, char** argv, struct sqlite3* db) {
 
     const char* sql;
     if (preserve_tagged) {
-        sql = "DELETE FROM history WHERE tag IS NULL";
+        sql = "DELETE FROM history WHERE id NOT IN ( SELECT entry_id FROM history_tags )";
     } else {
         sql = "DELETE FROM history";
     }

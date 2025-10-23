@@ -23,13 +23,13 @@
 
 #include <sqlite3.h>
 
-#define DB_USER_SCHEMA_VERSION 2
+#define DB_USER_SCHEMA_VERSION 3
 
 /* opens the database at path (or default path is NULL) */
 struct sqlite3* db_open(const char *path, bool create_if_not_exists);
 
 /* close the db connection */
-void db_close(struct sqlite3* db);
+bool db_close(struct sqlite3* db);
 
 /*
  * Initialise the db (create tables, indices, etc)
@@ -51,6 +51,7 @@ bool db_init(struct sqlite3* db);
  * Empty, just created database: 0
  * Database created with cclip 3.0.0: 1
  * Database created with cclip 3.0.0-next (with tag column): 2
+ * Database created with cclip >=3.1.0 (proper usage of user_version): >=3
  */
 int32_t db_get_user_version(struct sqlite3* db);
 bool db_set_user_version(struct sqlite3* db, int32_t version);
@@ -59,4 +60,12 @@ bool db_set_secure_delete(struct sqlite3* db, bool enable);
 
 /* perform migration */
 bool db_migrate(struct sqlite3* db, int32_t from, int32_t to);
+
+/* some helpers for common sqlite operations */
+
+/* tries to prepare statement and logs errors */
+bool db_prepare_stmt(struct sqlite3* db, const char* sql, struct sqlite3_stmt** stmt);
+
+#define STMT_BIND(stmt, type, name, ...) \
+    sqlite3_bind_##type((stmt), sqlite3_bind_parameter_index((stmt), (name)), ##__VA_ARGS__)
 

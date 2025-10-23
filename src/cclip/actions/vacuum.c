@@ -24,8 +24,8 @@
 #include "getopt.h"
 #include "log.h"
 
-static void print_help_and_exit(FILE *stream, int rc) {
-    const char *help =
+static void print_help(void) {
+    static const char help[] =
         "Usage:\n"
         "    cclip vacuum\n"
         "\n"
@@ -33,8 +33,7 @@ static void print_help_and_exit(FILE *stream, int rc) {
         "    cclip vacuum does not take command line options\n"
     ;
 
-    fprintf(stream, "%s", help);
-    exit(rc);
+    fputs(help, stdout);
 }
 
 int action_vacuum(int argc, char** argv, struct sqlite3* db) {
@@ -44,17 +43,17 @@ int action_vacuum(int argc, char** argv, struct sqlite3* db) {
     while ((opt = getopt(argc, argv, ":h")) != -1) {
         switch (opt) {
         case 'h':
-            print_help_and_exit(stdout, 0);
-            break;
+            print_help();
+            return 0;
         case '?':
             log_print(ERR, "unknown option: %c", optopt);
-            break;
+            return 1;
         case ':':
             log_print(ERR, "missing arg for %c", optopt);
-            break;
+            return 1;
         default:
             log_print(ERR, "error while parsing command line options");
-            break;
+            return 1;
         }
     }
     argc = argc - optind;
@@ -65,11 +64,8 @@ int action_vacuum(int argc, char** argv, struct sqlite3* db) {
         return 1;
     }
 
-    const char* sql = "VACUUM";
-
-    char* errmsg;
-    if (sqlite3_exec(db, sql, NULL, NULL, &errmsg) != SQLITE_OK) {
-        log_print(ERR, "sqlite error: %s", errmsg);
+    if (sqlite3_exec(db, "VACUUM", NULL, NULL, NULL) != SQLITE_OK) {
+        log_print(ERR, "sqlite error: %s", sqlite3_errmsg(db));
         return 1;
     }
 

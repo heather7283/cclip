@@ -26,80 +26,156 @@
 #include <sqlite3.h>
 
 #include "../utils.h"
+#include "collections/string.h"
+#include "db.h"
+#include "macros.h"
 #include "getopt.h"
 #include "log.h"
 
-static void print_help_and_exit(FILE *stream, int rc) {
-    const char *help =
+static void print_help(void) {
+    static const char help[] =
         "Usage:\n"
-        "    cclip list [-t] [FIELDS]\n"
+        "    cclip list [-t] [-T TAG] [FIELDS]\n"
         "\n"
         "Command line options:\n"
         "    -t      Only list entries with non-empty tag\n"
+        "    -T TAG  Only list entries that have matching TAG (implies -t)\n"
         "    FIELDS  Comma-separated list of fields to print\n"
     ;
 
-    fprintf(stream, "%s", help);
-    exit(rc);
+    fputs(help, stdout);
 }
 
 int action_list(int argc, char** argv, struct sqlite3* db) {
-    bool only_tagged = false;
+    int retcode = 0;
+    bool print_only_tagged = false;
+    const char* tag = NULL;
+
+    struct sqlite3_stmt* stmt = NULL;
 
     int opt;
     optreset = 1;
     optind = 0;
-    while ((opt = getopt(argc, argv, ":th")) != -1) {
+    while ((opt = getopt(argc, argv, ":T:th")) != -1) {
         switch (opt) {
+        case 'T':
+            tag = optarg;
+            print_only_tagged = true;
+            break;
         case 't':
-            only_tagged = true;
+            print_only_tagged = true;
             break;
         case 'h':
-            print_help_and_exit(stdout, 0);
-            break;
+            print_help();
+            goto out;
         case '?':
             log_print(ERR, "unknown option: %c", optopt);
-            break;
+            retcode = 1;
+            goto out;
         case ':':
             log_print(ERR, "missing arg for %c", optopt);
-            break;
+            retcode = 1;
+            goto out;
         default:
             log_print(ERR, "error while parsing command line options");
-            break;
+            retcode = 1;
+            goto out;
         }
     }
     argc = argc - optind;
     argv = &argv[optind];
 
-    const char* fields = NULL;
+    enum select_fields fields[SELECT_FIELDS_COUNT];
+    int nfields = 0;
     if (argc < 1) {
-        fields = "rowid,mime_type,preview";
+        static char default_fields[] = "rowid,mime_type,preview";
+        nfields = build_field_list(default_fields, fields);
     } else if (argc == 1) {
-        fields = build_field_list(argv[0]);
-        if (fields == NULL) {
-            return 1;
-        }
+        nfields = build_field_list(argv[0], fields);
     } else {
         log_print(ERR, "extra arguments on the command line");
-        return 1;
+        retcode = 1;
+        goto out;
     }
 
-    const char sql1[] = "SELECT ";
-    const char sql2[] = " FROM history";
-    const char sql3[] = " WHERE tag IS NOT NULL";
-    const char sql4[] = " ORDER BY timestamp DESC";
-    char sql[MAX_FIELD_LIST_SIZE + sizeof(sql1) + sizeof(sql2) + sizeof(sql3) + sizeof(sql4)];
-    snprintf(sql, sizeof(sql), "%s%s%s%s%s", sql1, fields, sql2, only_tagged ? sql3 : "", sql4);
+    if (nfields < 1) {
+        retcode = 1;
+        goto out;
+    }
+
+    struct string sql = {0};
+    string_reserve(&sql, 512);
+
+    string_append(&sql, "SELECT DISTINCT");
+
+    bool print_tags = false;
+    for (int i = 0; i < nfields; i++) {
+        switch (fields[i]) {
+        case FIELD_ID:
+            string_append(&sql, " h.id,");
+            break;
+        case FIELD_PREVIEW:
+            string_append(&sql, " h.preview,");
+            break;
+        case FIELD_MIME_TYPE:
+            string_append(&sql, " h.mime_type,");
+            break;
+        case FIELD_DATA_SIZE:
+            string_append(&sql, " h.data_size,");
+            break;
+        case FIELD_TIMESTAMP:
+            string_append(&sql, " h.timestamp,");
+            break;
+        case FIELD_TAGS:
+            print_tags = true;
+            string_append(&sql, " group_concat(t.name, ',') AS tags,");
+            break;
+        default:
+            log_print(ERR, "invalid field enum value: %d (BUG)", fields[i]);
+            retcode = 1;
+            goto out;
+        }
+    }
+    sql.str[sql.len - 1] = ' ';
+
+    string_append(&sql, " FROM history AS h ");
+
+    if (print_tags || print_only_tagged) {
+        string_append(&sql, print_only_tagged ? " INNER " : " LEFT ");
+        string_append(&sql, " JOIN history_tags AS ht ON h.id = ht.entry_id ");
+
+        string_append(&sql, print_only_tagged ? " INNER " : " LEFT ");
+        string_append(&sql, " JOIN tags AS t ON ht.tag_id = t.id ");
+
+        if (tag != NULL) {
+            /* FIXME: probably very inefficient idk */
+            static const char stupid_filter[] = TOSTRING(
+                WHERE h.id IN (
+                    SELECT ht2.entry_id
+                    FROM history_tags AS ht2
+                    INNER JOIN tags AS t2 ON ht2.tag_id = t2.id
+                    WHERE t2.name = @tag_name
+                )
+            );
+            string_appendn(&sql, stupid_filter, strlen(stupid_filter));
+        }
+
+        if (print_tags) {
+            string_append(&sql, " GROUP BY h.id ");
+        }
+    }
+
+    string_append(&sql, " ORDER BY h.timestamp DESC");
 
     int rc;
-    struct sqlite3_stmt* stmt = NULL;
 
-    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
-    if (rc != SQLITE_OK) {
-        log_print(ERR, "failed to prepare sql statement:");
-        log_print(ERR, "source: %s", sql);
-        log_print(ERR, "reason: %s", sqlite3_errmsg(db));
-        return 1;
+    if (!db_prepare_stmt(db, sql.str, &stmt)) {
+        retcode = 1;
+        goto out;
+    }
+
+    if (tag != NULL) {
+        STMT_BIND(stmt, text, "@tag_name", tag, -1, SQLITE_STATIC);
     }
 
     /* field + tab + field + tab + field + newline */
@@ -119,13 +195,18 @@ int action_list(int argc, char** argv, struct sqlite3* db) {
 
         if (!writev_full(1, iov, ncols * 2)) {
             log_print(ERR, "failed to write row: %s", strerror(errno));
+            retcode = 1;
+            goto out;
         }
     }
     if (rc != SQLITE_DONE) {
         log_print(ERR, "failed to list rows: %s", sqlite3_errmsg(db));
-        return 1;
+        retcode = 1;
+        goto out;
     }
 
-    return 0;
+out:
+    sqlite3_finalize(stmt);
+    return retcode;
 }
 

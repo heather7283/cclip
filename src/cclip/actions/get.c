@@ -18,16 +18,17 @@
 
 #include <stdlib.h>
 #include <stdio.h>
-#include <string.h>
 
 #include <sqlite3.h>
 
 #include "../utils.h"
+#include "collections/string.h"
+#include "db.h"
 #include "getopt.h"
 #include "log.h"
 
-static void print_help_and_exit(FILE *stream, int rc) {
-    const char *help =
+static void print_help(void) {
+    static const char help[] =
         "Usage:\n"
         "    cclip get ID [FIELDS]\n"
         "\n"
@@ -36,36 +37,34 @@ static void print_help_and_exit(FILE *stream, int rc) {
         "    FIELDS  Comma-separated list of rows to print instead of entry data\n"
     ;
 
-    fprintf(stream, "%s", help);
-    exit(rc);
-}
-
-static int print_row(void* data, int argc, char** argv, char** column_names) {
-    for (int i = 0; i < argc - 1; i++) {
-        printf("%s\t", argv[i] ? argv[i] : "");
-    }
-    printf("%s\n", argv[argc - 1] ? argv[argc - 1] : "");
-    return 0;
+    fputs(help, stdout);
 }
 
 int action_get(int argc, char** argv, struct sqlite3* db) {
+    int retcode = 0;
+
+    struct sqlite3_stmt* stmt = NULL;
+
     int opt;
     optreset = 1;
     optind = 0;
     while ((opt = getopt(argc, argv, ":h")) != -1) {
         switch (opt) {
         case 'h':
-            print_help_and_exit(stdout, 0);
-            break;
+            print_help();
+            goto out;
         case '?':
             log_print(ERR, "unknown option: %c", optopt);
-            break;
+            retcode = 1;
+            goto out;
         case ':':
             log_print(ERR, "missing arg for %c", optopt);
-            break;
+            retcode = 1;
+            goto out;
         default:
             log_print(ERR, "error while parsing command line options");
-            break;
+            retcode = 1;
+            goto out;
         }
     }
     argc = argc - optind;
@@ -75,7 +74,8 @@ int action_get(int argc, char** argv, struct sqlite3* db) {
     char* fields_str;
     if (argc < 1) {
         log_print(ERR, "not enough arguments");
-        return 1;
+        retcode = 1;
+        goto out;
     } else if (argc == 1) {
         id_str = argv[0];
         fields_str = NULL;
@@ -84,58 +84,136 @@ int action_get(int argc, char** argv, struct sqlite3* db) {
         fields_str = argv[1];
     } else {
         log_print(ERR, "extra arguments on the command line");
-        return 1;
+        retcode = 1;
+        goto out;
     }
 
-    int64_t id;
-    if (!get_id(id_str, &id)) {
-        return 1;
+    int64_t entry_id;
+    if (!get_id(id_str, &entry_id)) {
+        retcode = 1;
+        goto out;
     }
 
     if (fields_str == NULL) {
-        const char* sql = "SELECT data FROM history WHERE rowid = ?";
-        sqlite3_stmt* stmt;
+        const char* sql = "SELECT data FROM history WHERE id = @entry_id";
 
-        if (sqlite3_prepare(db, sql, -1, &stmt, NULL) != SQLITE_OK) {
-            log_print(ERR, "failed to prepare statement: %s", sqlite3_errmsg(db));
-            return 1;
+        if (!db_prepare_stmt(db, sql, &stmt)) {
+            retcode = 1;
+            goto out;
         }
 
-        sqlite3_bind_int(stmt, 1, id);
+        STMT_BIND(stmt, int64, "@entry_id", entry_id);
 
         int ret = sqlite3_step(stmt);
         if (ret == SQLITE_ROW) {
-            int data_size = sqlite3_column_bytes(stmt, 0);
-            const void* data = sqlite3_column_blob(stmt, 0);
-            fwrite(data, 1, data_size, stdout);
+            struct iovec iov = {
+                .iov_base = (void*)sqlite3_column_blob(stmt, 0),
+                .iov_len = sqlite3_column_bytes(stmt, 0),
+            };
+            writev_full(1, &iov, 1);
         } else if (ret == SQLITE_DONE) {
-            log_print(ERR, "no entry found with id %li", id);
-            return 1;
+            log_print(ERR, "no entry found with id %li", entry_id);
+            retcode = 1;
+            goto out;
         } else {
             log_print(ERR, "sqlite error: %s", sqlite3_errmsg(db));
-            return 1;
+            retcode = 1;
+            goto out;
         }
-
-        sqlite3_finalize(stmt);
     } else {
-        const char* fields = build_field_list(fields_str);
-        if (fields == NULL) {
-            return 1;
+        enum select_fields fields[SELECT_FIELDS_COUNT];
+        int nfields = build_field_list(fields_str, fields);
+        if (nfields < 1) {
+            retcode = 1;
+            goto out;
         }
 
-        const char sql1[] = "SELECT ";
-        const char sql2[] = " FROM history";
-        const char sql3[] = " WHERE rowid = ";
-        char sql[MAX_FIELD_LIST_SIZE + sizeof(sql1) + sizeof(sql2) + sizeof(sql3)];
-        snprintf(sql, sizeof(sql), "%s%s%s%s%li", sql1, fields, sql2, sql3, id);
+        struct string sql = {0};
+        string_reserve(&sql, 512);
 
-        char* errmsg;
-        if (sqlite3_exec(db, sql, print_row, NULL, &errmsg) != SQLITE_OK) {
-            log_print(ERR, "sqlite error: %s", errmsg);
-            return 1;
+        string_append(&sql, "SELECT ");
+
+        bool has_field_tags = false;
+        for (int i = 0; i < nfields; i++) {
+            switch (fields[i]) {
+            case FIELD_ID:
+                string_append(&sql, " h.id,");
+                break;
+            case FIELD_PREVIEW:
+                string_append(&sql, " h.preview,");
+                break;
+            case FIELD_MIME_TYPE:
+                string_append(&sql, " h.mime_type,");
+                break;
+            case FIELD_DATA_SIZE:
+                string_append(&sql, " h.data_size,");
+                break;
+            case FIELD_TIMESTAMP:
+                string_append(&sql, " h.timestamp,");
+                break;
+            case FIELD_TAGS:
+                has_field_tags = true;
+                string_append(&sql, " GROUP_CONCAT(t.name, ',') AS tags,");
+                break;
+            default:
+                log_print(ERR, "invalid field enum value: %d (BUG)", fields[i]);
+                retcode = 1;
+                goto out;
+            }
+        }
+        sql.str[sql.len - 1] = ' ';
+
+        string_append(&sql, " FROM history AS h ");
+
+        if (has_field_tags) {
+            string_append(&sql, " LEFT JOIN history_tags AS ht ON h.id = ht.entry_id ");
+            string_append(&sql, " LEFT JOIN tags AS t ON ht.tag_id = t.id ");
+        }
+
+        string_append(&sql, " WHERE h.id = @entry_id ");
+
+        if (has_field_tags) {
+            string_append(&sql, " GROUP BY h.id ");
+        }
+
+        int ret;
+
+        if (!db_prepare_stmt(db, sql.str, &stmt)) {
+            retcode = 1;
+            goto out;
+        }
+
+        STMT_BIND(stmt, int64, "@entry_id", entry_id);
+
+        ret = sqlite3_step(stmt);
+        if (ret == SQLITE_ROW) {
+            const int ncols = sqlite3_column_count(stmt);
+            struct iovec* iov = malloc(sizeof(*iov) * (ncols * 2));
+            for (int i = 0; i < ncols; i++) {
+                iov[i * 2] = (struct iovec){
+                    .iov_base = (void *)sqlite3_column_blob(stmt, i),
+                    .iov_len = sqlite3_column_bytes(stmt, i),
+                };
+                iov[(i * 2) + 1] = (struct iovec){
+                    .iov_base = (i < ncols - 1) ? "\t" : "\n",
+                    .iov_len = 1,
+                };
+            }
+
+            writev_full(1, iov, ncols * 2);
+        } else if (ret == SQLITE_DONE) {
+            log_print(ERR, "no entry found with id %li", entry_id);
+            retcode = 1;
+            goto out;
+        } else {
+            log_print(ERR, "sqlite error: %s", sqlite3_errmsg(db));
+            retcode = 1;
+            goto out;
         }
     }
 
-    return 0;
+out:
+    sqlite3_finalize(stmt);
+    return retcode;
 }
 

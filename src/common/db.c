@@ -55,23 +55,41 @@
  *     tag       TEXT    UNIQUE
  * );
  * CREATE INDEX idx_history_timestamp ON history (timestamp);
+ *
+ * Schema version 3: cclip 3.1.0
+ *
+ * CREATE TABLE history (
+ *     id        INTEGER PRIMARY KEY,
+ *     data      BLOB    NOT NULL,
+ *     data_hash INTEGER NOT NULL UNIQUE,
+ *     data_size INTEGER NOT NULL,
+ *     preview   TEXT    NOT NULL,
+ *     mime_type TEXT    NOT NULL,
+ *     timestamp INTEGER NOT NULL
+ * );
+ * CREATE INDEX idx_history_timestamp ON history (timestamp);
+ *
+ * CREATE TABLE tags (
+ *     id   INTEGER PRIMARY KEY,
+ *     name TEXT    NOT NULL UNIQUE
+ * );
+ *
+ * CREATE TABLE history_tags (
+ *     tag_id   INTEGER,
+ *     entry_id INTEGER,
+ *
+ *     PRIMARY KEY ( tag_id, entry_id ),
+ *     FOREIGN KEY ( entry_id ) REFERENCES history ( id ) ON DELETE CASCADE,
+ *     FOREIGN KEY ( tag_id ) REFERENCES tags ( id ) ON DELETE RESTRICT
+ * ) WITHOUT ROWID;
+ *
+ * CREATE TRIGGER cleanup_orphaned_tags AFTER DELETE ON history_tags FOR EACH ROW BEGIN
+ *     DELETE FROM tags
+ *     WHERE id = OLD.tag_id
+ *     AND NOT EXISTS ( SELECT 1 FROM history_tags WHERE tag_id = OLD.tag_id );
+ * END;
+ *
  */
-
-static const char create_table_history[] = TOSTRING(
-    CREATE TABLE history (
-        data      BLOB    NOT NULL,
-        data_hash INTEGER NOT NULL UNIQUE,
-        data_size INTEGER NOT NULL,
-        preview   TEXT    NOT NULL,
-        mime_type TEXT    NOT NULL,
-        timestamp INTEGER NOT NULL,
-        tag       TEXT    UNIQUE
-    )
-);
-
-static const char create_index_history_timestamp[] = TOSTRING(
-    CREATE INDEX idx_history_timestamp ON history (timestamp)
-);
 
 static const char* get_default_db_path(void) {
     static char db_path[PATH_MAX];
@@ -131,32 +149,67 @@ struct sqlite3* db_open(const char *_path, bool create_if_not_exists) {
         return NULL;
     }
 
+    /* must be enabled explicitly per connection */
+    if (sqlite3_exec(db, "PRAGMA foreign_keys = 1", NULL, NULL, NULL) != SQLITE_OK) {
+        log_print(ERR, "failed to enable foreign key support: %s", sqlite3_errmsg(db));
+        sqlite3_close(db);
+        return NULL;
+    }
+
     return db;
 }
 
-void db_close(struct sqlite3 *db) {
-    sqlite3_close(db);
+bool db_close(struct sqlite3* db) {
+    if (sqlite3_close(db) != SQLITE_OK) {
+        log_print(ERR, "failed to close database, report this as a bug");
+        return false;
+    }
+
+    return true;
 }
 
 bool db_init(struct sqlite3* db) {
-    int rc;
+    static const char sql[] = TOSTRING(
+        PRAGMA journal_mode = WAL;
 
-    /* enable WAL https://sqlite.org/wal.html */
-    rc = sqlite3_exec(db, "PRAGMA journal_mode=WAL", NULL, NULL, NULL);
-    if (rc != SQLITE_OK) {
-        log_print(ERR, "sql: PRAGMA journal_mode=WAL failed: %s", sqlite3_errmsg(db));
-        return false;
-    }
+        CREATE TABLE history (
+            id        INTEGER PRIMARY KEY,
+            data      BLOB    NOT NULL,
+            data_size INTEGER NOT NULL,
+            data_hash INTEGER NOT NULL UNIQUE,
+            preview   TEXT    NOT NULL,
+            mime_type TEXT    NOT NULL,
+            timestamp INTEGER NOT NULL,
+        );
 
-    rc = sqlite3_exec(db, create_table_history, NULL, NULL, NULL);
-    if (rc != SQLITE_OK) {
-        log_print(ERR, "sql: failed to create history database: %s", sqlite3_errmsg(db));
-        return false;
-    }
+        CREATE INDEX idx_history_timestamp ON history (timestamp);
 
-    rc = sqlite3_exec(db, create_index_history_timestamp, NULL, NULL, NULL);
+        CREATE TABLE tags (
+            id   INTEGER PRIMARY KEY,
+            name TEXT    NOT NULL UNIQUE
+        );
+
+        CREATE TABLE history_tags (
+            tag_id   INTEGER,
+            entry_id INTEGER,
+
+            PRIMARY KEY ( tag_id, entry_id ),
+            FOREIGN KEY ( entry_id ) REFERENCES history ( id ) ON DELETE CASCADE,
+            FOREIGN KEY ( tag_id ) REFERENCES tags ( id ) ON DELETE RESTRICT
+        ) WITHOUT ROWID;
+
+        CREATE TRIGGER cleanup_orphaned_tags AFTER DELETE ON history_tags FOR EACH ROW BEGIN
+            DELETE FROM tags
+            WHERE id = OLD.tag_id
+            AND NOT EXISTS ( SELECT 1 FROM history_tags WHERE tag_id = OLD.tag_id );
+        END;
+
+        PRAGMA user_version = 3;
+    );
+
+    int rc = sqlite3_exec(db, sql, NULL, NULL, NULL);
     if (rc != SQLITE_OK) {
-        log_print(ERR, "sql: failed to create history timestamp index: %s", sqlite3_errmsg(db));
+        log_print(ERR, "sql: failed to initialise database: %s", sqlite3_errmsg(db));
         return false;
     }
 
@@ -238,6 +291,70 @@ bool db_set_secure_delete(struct sqlite3* db, bool enable) {
     return ret;
 }
 
+static bool migrate_from_2_to_3(struct sqlite3* db) {
+    /* it is not possible to add a PRIMARY KEY column to a sqlite table */
+    static const char sql[] = TOSTRING(
+        CREATE TABLE new_history (
+            id        INTEGER PRIMARY KEY,
+            data      BLOB    NOT NULL,
+            data_size INTEGER NOT NULL,
+            data_hash INTEGER NOT NULL UNIQUE,
+            preview   TEXT    NOT NULL,
+            mime_type TEXT    NOT NULL,
+            timestamp INTEGER NOT NULL
+        );
+
+        CREATE TABLE tags (
+            id   INTEGER PRIMARY KEY,
+            name TEXT    NOT NULL UNIQUE
+        );
+
+        CREATE TABLE history_tags (
+            tag_id   INTEGER,
+            entry_id INTEGER,
+
+            PRIMARY KEY ( tag_id, entry_id ),
+            FOREIGN KEY ( entry_id ) REFERENCES new_history ( id ) ON DELETE CASCADE,
+            FOREIGN KEY ( tag_id ) REFERENCES tags ( id ) ON DELETE RESTRICT
+        ) WITHOUT ROWID;
+
+        CREATE TRIGGER cleanup_orphaned_tags AFTER DELETE ON history_tags FOR EACH ROW BEGIN
+            DELETE FROM tags
+            WHERE id = OLD.tag_id
+            AND NOT EXISTS ( SELECT 1 FROM history_tags WHERE tag_id = OLD.tag_id );
+        END;
+
+        INSERT INTO new_history (
+            id, data, data_hash, data_size, preview, mime_type, timestamp
+        ) SELECT
+            rowid, data, data_hash, data_size, preview, mime_type, timestamp
+        FROM history;
+
+        INSERT INTO tags ( name ) SELECT tag FROM history WHERE tag IS NOT NULL;
+
+        INSERT INTO history_tags ( tag_id, entry_id )
+        SELECT tags.id, history.rowid
+        FROM history
+        JOIN tags ON history.tag = tags.name
+        WHERE history.tag IS NOT NULL;
+
+        DROP TABLE history;
+        ALTER TABLE new_history RENAME TO history;
+
+        CREATE INDEX idx_history_timestamp ON history ( timestamp );
+
+        PRAGMA user_version = 3;
+    );
+
+    int rc = sqlite3_exec(db, sql, NULL, NULL, NULL);
+    if (rc != SQLITE_OK) {
+        log_print(ERR, "migration: %s", sqlite3_errmsg(db));
+        return false;
+    }
+
+    return true;
+}
+
 static bool migrate_from_1_to_2(struct sqlite3* db) {
     /* it is not possible to add a UNIQUE column to a sqlite table */
     static const char sql[] = TOSTRING(
@@ -276,12 +393,12 @@ typedef bool (*migration_function_t)(struct sqlite3* db);
 
 /* each function only handles migration from (i) to (i + 1) */
 static const migration_function_t migration_functions[] = {
-    [0] = db_init,
     [1] = migrate_from_1_to_2,
+    [2] = migrate_from_2_to_3,
 };
 
 bool db_migrate(struct sqlite3 *db, int32_t from, int32_t to) {
-    log_print(INFO, "migration: from %d to %d", from, to);
+    log_print(INFO, "migration: need to migrate from %d to %d", from, to);
 
     int rc;
 
@@ -293,8 +410,10 @@ bool db_migrate(struct sqlite3 *db, int32_t from, int32_t to) {
 
     while (from < to) {
         if (!migration_functions[from++](db)) {
-            log_print(ERR, "migration: failed to migrate to %d", from);
+            log_print(ERR, "migration: failed to migrate to version %d", from);
             goto rollback;
+        } else {
+            log_print(INFO, "migration: migration to version %d completed", from);
         }
     }
 
@@ -309,5 +428,17 @@ bool db_migrate(struct sqlite3 *db, int32_t from, int32_t to) {
 rollback:
     sqlite3_exec(db, "ROLLBACK", NULL, NULL, NULL);
     return false;
+}
+
+bool db_prepare_stmt(struct sqlite3* db, const char* sql, struct sqlite3_stmt** stmt) {
+    int ret = sqlite3_prepare_v2(db, sql, -1, stmt, NULL);
+    if (ret != SQLITE_OK) {
+        log_print(ERR, "failed to prepare SQL statement!");
+        log_print(ERR, "statement: %s", sql);
+        log_print(ERR, "reason: %s", sqlite3_errmsg(db));
+        return false;
+    }
+
+    return true;
 }
 

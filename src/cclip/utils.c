@@ -22,6 +22,7 @@
 #include <string.h>
 
 #include "utils.h"
+#include "macros.h"
 #include "log.h"
 
 bool str_to_int64(const char* str, int64_t* res) {
@@ -56,67 +57,46 @@ bool get_id(const char* str, int64_t* res) {
     }
 }
 
-static ssize_t strtcpy(char* restrict dst, const char* restrict src, size_t dsize) {
-    bool    trunc;
-    size_t  dlen, slen;
+int build_field_list(char* raw_list, enum select_fields out_fields[SELECT_FIELDS_COUNT]) {
+    #define FOR_LIST_OF_FIELDS(DO) \
+        DO(ID, "id", "rowid") \
+        DO(PREVIEW, "preview") \
+        DO(MIME_TYPE, "mime_type", "mime", "type") \
+        DO(DATA_SIZE, "data_size", "size") \
+        DO(TIMESTAMP, "timestamp", "time") \
+        DO(TAGS, "tags", "tag")
 
-    if (dsize == 0) {
-        errno = ENOBUFS;
-        return -1;
-    }
+    #define DEFINE_NAME_ARRAY(name, ...) \
+        static const char* name##_names[] = { __VA_ARGS__ };
+    FOR_LIST_OF_FIELDS(DEFINE_NAME_ARRAY)
 
-    slen = strnlen(src, dsize);
-    trunc = (slen == dsize);
-    dlen = slen - trunc;
-
-    stpcpy(mempcpy(dst, src, dlen), "");
-    if (trunc) {
-        errno = E2BIG;
-        return -1;
-    }
-    return slen;
-}
-
-static char* stpecpy(char* dst, char* end, const char* restrict src) {
-    ssize_t dlen;
-
-    if (dst == NULL) {
-        return NULL;
-    }
-
-    dlen = strtcpy(dst, src, end - dst);
-    return (dlen == -1) ? NULL : dst + dlen;
-}
-
-const char* build_field_list(char* raw_list) {
-    enum fields {
-        ROWID, TIMESTAMP, MIME_TYPE, PREVIEW, DATA_SIZE, TAG, ALLOWED_FIELDS_COUNT
+    static const struct {
+        const char** names;
+        unsigned names_count;
+    } fields[] = {
+        #define DEFINE_STRUCT_MEMBER(n, ...) \
+            [FIELD_##n] = { .names = n##_names, .names_count = SIZEOF_ARRAY(n##_names) },
+        FOR_LIST_OF_FIELDS(DEFINE_STRUCT_MEMBER)
     };
-    const char** allowed_fields[ALLOWED_FIELDS_COUNT];
-    allowed_fields[ROWID]     = (const char*[]){"rowid", "id", NULL};
-    allowed_fields[TIMESTAMP] = (const char*[]){"timestamp", "time", NULL};
-    allowed_fields[MIME_TYPE] = (const char*[]){"mime_type", "mime", "type", NULL};
-    allowed_fields[PREVIEW]   = (const char*[]){"preview", NULL};
-    allowed_fields[DATA_SIZE] = (const char*[]){"data_size", "size", NULL};
-    allowed_fields[TAG]       = (const char*[]){"tag", NULL};
 
-    static char result_list[MAX_FIELD_LIST_SIZE];
-    char *result_pos = result_list;
-    char *result_end = result_list + sizeof(result_list);
+    bool seen_fields[SELECT_FIELDS_COUNT];
+    memset(&seen_fields, 0, sizeof(seen_fields));
+
+    int out_fields_count = 0;
 
     char* token = strtok(raw_list, ",");
     while (token != NULL) {
         bool token_valid = false;
-        for (int i = 0; i < ALLOWED_FIELDS_COUNT; i++) {
-            for (int j = 0; allowed_fields[i][j] != NULL; j++) {
-                if (strcmp(token, allowed_fields[i][j]) == 0) {
-                    result_pos = stpecpy(result_pos, result_end, allowed_fields[i][0]);
-                    result_pos = stpecpy(result_pos, result_end, ",");
-                    if (result_pos == NULL) {
-                        log_print(ERR, "field list is too long");
-                        return NULL;
+        for (unsigned f = 0; f < SIZEOF_ARRAY(fields); f++) {
+            for (unsigned j = 0; j < fields[f].names_count; j++) {
+                if (STREQ(token, fields[f].names[j])) {
+                    if (seen_fields[f]) {
+                        log_print(ERR, "field %s encountered more than once", token);
+                        return 0;
                     }
 
+                    seen_fields[f] = true;
+                    out_fields[out_fields_count++] = f;
                     token_valid = true;
                     goto loop_out;
                 }
@@ -126,17 +106,13 @@ const char* build_field_list(char* raw_list) {
 
         if (!token_valid) {
             log_print(ERR, "invalid field: %s", token);
-            return NULL;
+            return 0;
         }
 
         token = strtok(NULL, ",");
     }
 
-    if (result_pos > result_list && *(result_pos - 1) == ',') {
-        *(result_pos - 1) = '\0';
-    }
-
-    return result_list;
+    return out_fields_count;
 }
 
 bool writev_full(int fd, struct iovec *iov, int iovcnt) {
@@ -165,5 +141,21 @@ bool writev_full(int fd, struct iovec *iov, int iovcnt) {
     }
 
     return true;
+}
+
+bool is_tag_valid(const char* tag) {
+    bool has_nonspace = false;
+    for (const char* p = tag; *p != '\0'; p++) {
+        const char c = *p;
+        if (c < 0x20 || c > 0x7E || c == ',') {
+            return false;
+        } else if (c == ' ') {
+            continue;
+        } else {
+            has_nonspace = true;
+        }
+    }
+
+    return has_nonspace;
 }
 

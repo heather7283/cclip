@@ -1,15 +1,15 @@
 .TH cclipd 1 "2025-04-20" "@VERSION@" "User Commands"
+
 .SH NAME
 cclipd \- clipboard manager daemon for wayland.
+
 .SH SYNOPSIS
-.B cclipd
-.RI [ OPTIONS... ]
+\fBcclipd\fP [\fIOPTIONS...\fP]
+
 .SH DESCRIPTION
-.B cclipd
-monitors wayland clipboard and saves clipboard contents to a database.
-.br
-Saved entries can later be retrieved with
-.BR cclip (1) .
+\fBcclipd\fP monitors wayland clipboard and saves clipboard contents to database.
+Saved entries can later be retrieved with \fBcclip\fP(1).
+
 .SH OPTIONS
 .TP 4
 .BI \-d " DB_PATH"
@@ -17,6 +17,7 @@ Path to database file.
 .br
 Default is $XDG_DATA_HOME/cclip/db.sqlite3, \
 where XDG_DATA_HOME defaults to $HOME/.local/share if it is unset.
+
 .TP 4
 .BI \-t " PATTERN"
 MIME type pattern to accept. Can be supplied multiple times. \
@@ -34,8 +35,9 @@ Minimal clipboard entry size. Smaller entries will be ignored.
 Default is 1 (accept everything).
 .TP 4
 .BI \-c " ENTRIES"
-Maximum number of entries to keep in the database. \
-Oldest entries exceeding this limit are automatically deleted.
+Maximum number of untagged entries to keep in the database. \
+Oldest untagged entries exceeding this limit are automatically deleted. \
+Tagged entries are never automatically deleted.
 .br
 Default is 1000.
 .TP 4
@@ -58,6 +60,7 @@ Print help message and exit 0.
 .TP 4
 .B \-V
 Print version and exit 0.
+
 .SH SIGNALS
 .B cclipd
 has special handling for the following signals:
@@ -71,6 +74,7 @@ to exit cleanly.
 Will cause
 .B cclipd
 to close and reopen database connection.
+
 .SH EXAMPLES
 Try to accept image/png MIME type if available, then try to accept anything \
 that starts with image/, and finally fall back to text/plain;charset=utf-8:
@@ -99,12 +103,14 @@ cclipd -vv -p -t "text/*" -d ~/.cache/cclip/mydb
 .EE
 .RE
 .PP
+
 .SH COMPOSITOR SUPPORT
 .B cclipd
 uses wlr_data_control_unstable_v1 wayland protocol for clipboard interaction. \
 You can check if your compositor supports wlr_data_control_unstable_v1 here:
 .PP
 https://wayland.app/protocols/wlr-data-control-unstable-v1#compositor-support
+
 .SH SECURITY
 Since
 .B cclipd
@@ -113,6 +119,7 @@ everyone who has read access to the database file can read its contents. \
 One can delete sensitive data from the database using secure delete \
 option provided by
 .BR cclip (1) .
+
 .SH BUGS
 Please report bugs to https://github.com/heather7283/cclip/issues.
 .PP
@@ -124,6 +131,7 @@ Provide backtrace with symbols if you experience a crash.
 .IP \(bu 4
 Describe steps necessary to reproduce the issue.
 .PD
+
 .SH SEE ALSO
 .BR cclip (1),
 .BR wl-clipboard (1)
