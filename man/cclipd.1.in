@@ -1,4 +1,4 @@
-.TH cclipd 1 "2025-04-20" "@VERSION@" "User Commands"
+.TH cclipd 1 "@DATE@" "@VERSION@" "User Commands"
 
 .SH NAME
 cclipd \- clipboard manager daemon for wayland.

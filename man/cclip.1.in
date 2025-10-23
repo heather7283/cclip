@@ -1,4 +1,5 @@
-.TH cclip 1 "2025-04-20" "@VERSION@" "User Commands"
+.TH cclip 1 "@DATE@" "@VERSION@" "User Commands"
+
 .SH NAME
 cclip \- command line interface for cclip database.
 

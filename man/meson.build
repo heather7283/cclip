@@ -3,6 +3,8 @@ man_sources = [
     'cclipd.1.in'
 ]
 
+current_date = run_command(find_program('date'), '-I', check: false).stdout().strip()
+
 foreach man_source: man_sources
     name = man_source.split('.')[0]
     section = man_source.split('.')[1]
@@ -11,6 +13,7 @@ foreach man_source: man_sources
 
     conf_data = configuration_data()
     conf_data.set('VERSION', meson.project_version())
+    conf_data.set('DATE', current_date)
 
     configure_file(
         input: man_source,
