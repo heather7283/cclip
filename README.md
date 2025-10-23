@@ -1,7 +1,7 @@
 # cclip - clipboard manager for wayland
 ## Overview
 cclip is a set of two tools:
-- cclipd daemon runs in the background, monitors wayland clipboard for changes and writes clipboard content to a database
+- cclipd daemon runs in the background, monitors wayland clipboard for changes and writes clipboard contents to a database
 - cclip is a CLI tools for interacting with the database created by cclipd
 
 cclip was heavily inspired by [cliphist](https://github.com/sentriz/cliphist) and attempts to fix some issues cliphist has.
@@ -14,10 +14,6 @@ cclip was heavily inspired by [cliphist](https://github.com/sentriz/cliphist) an
 - Preserves clipboard content byte-to-byte (doesn't insert extra newlines, strip whitespace, etc)
 - Supports text, images, and any other MIME type, really
 - Lets you add custom tags to clipboard entries
-- Blazingly fa.. oh nvm I can't say that, it's written in C
-
-## Installation
-[Releases](https://github.com/heather7283/cclip/releases) page provides statically linked binaries for x86_64. You can download them and put them somewhere in your PATH. If you want to build cclip yourself, continue reading.
 
 ## Building
 > [!NOTE]
