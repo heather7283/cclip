@@ -172,11 +172,13 @@ static bool do_delete_oldest(int keep_count) {
 
     STMT_BIND(stmt, int, "@keep_count", keep_count);
 
+    log_print(TRACE, "sql: deleting oldest entries");
     int rc = sqlite3_step(stmt);
     if (rc != SQLITE_DONE) {
         log_print(ERR, "sql: failed to delete oldest entries: %s", sqlite3_errmsg(db));
         ret = false;
     }
+    log_print(TRACE, "sql: %d oldest entries deleted", sqlite3_changes(db));
 
     sqlite3_reset(stmt);
     sqlite3_clear_bindings(stmt);
@@ -203,8 +205,15 @@ bool insert_db_entry(const void* data, size_t data_size, const char* mime) {
     };
     if (!do_insert(&entry)) {
         goto rollback;
-    } else if (config.max_entries_count > 0 && !do_delete_oldest(config.max_entries_count)) {
-        goto rollback;
+    } else if (config.max_entries_count > 0) {
+        /* only run cleanup every `period` insertions */
+        const int period = 10;
+        static int counter = 0;
+        if (counter++ % period == 0) {
+            if (!do_delete_oldest(config.max_entries_count)) {
+                goto rollback;
+            }
+        }
     }
 
     if (!commit_transaction()) {
