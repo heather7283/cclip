@@ -59,12 +59,14 @@ static struct {
         ON CONFLICT ( data_hash ) DO UPDATE SET timestamp=excluded.timestamp
     )},
     [STMT_DELETE_OLDEST] = { .src = TOSTRING(
-        WITH newest_entries AS (
-            SELECT id FROM history ORDER BY timestamp DESC LIMIT @keep_count
-        ) DELETE FROM history WHERE id NOT IN (
-            SELECT id FROM newest_entries
-            UNION
-            SELECT DISTINCT entry_id FROM history_tags
+        DELETE FROM history
+        WHERE id IN (
+            SELECT id FROM history
+            WHERE id NOT IN (
+                SELECT entry_id FROM history_tags
+            )
+            ORDER BY timestamp DESC
+            LIMIT -1 OFFSET @keep_count
         );
     )},
     [STMT_BEGIN] = { .src = TOSTRING(
