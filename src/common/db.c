@@ -179,7 +179,7 @@ bool db_init(struct sqlite3* db) {
             data_hash INTEGER NOT NULL UNIQUE,
             preview   TEXT    NOT NULL,
             mime_type TEXT    NOT NULL,
-            timestamp INTEGER NOT NULL,
+            timestamp INTEGER NOT NULL
         );
 
         CREATE INDEX idx_history_timestamp ON history (timestamp);
