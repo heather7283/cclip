@@ -91,9 +91,15 @@ if \fITAG\fP is specified, otherwise remove ALL tags from an entry.
 .RE
 
 .PP
-\fBtags\fP
+\fBtags\fP [list]
+.br
+\fBtags\fP delete \fITAG\fP
+.br
+\fBtags\fP wipe
 .RS 4
-Lists all tags present in the database to stdout, separated by newlines.
+In the first form, list all tags in the database, separated by newlines.
+In the second form, delete \fITAG\fP from database.
+In the third form, delete ALL tags from database.
 .RE
 
 .PP

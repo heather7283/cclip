@@ -26,62 +26,30 @@
 
 #include "../utils.h"
 #include "db.h"
+#include "macros.h"
 #include "getopt.h"
 #include "log.h"
 
 static void print_help(void) {
     static const char help[] =
         "Usage:\n"
-        "    cclip tags\n"
-        "\n"
-        "Command line options:\n"
-        "    cclip tags does not take command line options\n"
+        "    cclip tags [list]\n"
+        "    cclip tags delete TAG\n"
+        "    cclip tags wipe\n"
     ;
 
     fputs(help, stdout);
 }
 
-int action_tags(int argc, char** argv, struct sqlite3* db) {
-    int retcode = 0;
-
+static int do_list(struct sqlite3* db) {
     struct sqlite3_stmt* stmt = NULL;
 
-    int opt;
-    optreset = 1;
-    optind = 0;
-    while ((opt = getopt(argc, argv, ":h")) != -1) {
-        switch (opt) {
-        case 'h':
-            print_help();
-            goto out;
-        case '?':
-            log_print(ERR, "unknown option: %c", optopt);
-            retcode = 1;
-            goto out;
-        case ':':
-            log_print(ERR, "missing arg for %c", optopt);
-            retcode = 1;
-            goto out;
-        default:
-            log_print(ERR, "error while parsing command line options");
-            retcode = 1;
-            goto out;
-        }
-    }
-    argc = argc - optind;
-    argv = &argv[optind];
-
-    if (argc > 0) {
-        log_print(ERR, "extra arguments on the command line");
-        retcode = 1;
-        goto out;
-    }
-
-    const char* sql = "SELECT name FROM tags";
+    const char* sql = TOSTRING(
+        SELECT name FROM tags;
+    );
 
     if (!db_prepare_stmt(db, sql, &stmt)) {
-        retcode = 1;
-        goto out;
+        return 1;
     }
 
     int rc;
@@ -95,18 +63,117 @@ int action_tags(int argc, char** argv, struct sqlite3* db) {
 
         if (!writev_full(1, iov, 2)) {
             log_print(ERR, "failed to write tag name: %s", strerror(errno));
-            retcode = 1;
-            goto out;
+            sqlite3_finalize(stmt);
+            return 1;
         }
     }
+
     if (rc != SQLITE_DONE) {
         log_print(ERR, "failed to list tags: %s", sqlite3_errmsg(db));
-        retcode = 1;
-        goto out;
+        return 1;
     }
 
-out:
     sqlite3_finalize(stmt);
+    return 0;
+}
+
+static int do_delete(struct sqlite3* db, const char* name) {
+    struct sqlite3_stmt* stmt = NULL;
+
+    const char* sql = TOSTRING(
+        WITH tag_ids AS (
+            SELECT id FROM tags WHERE name = @name
+        ) DELETE FROM history_tags WHERE tag_id IN tag_ids;
+    );
+
+    if (!db_prepare_stmt(db, sql, &stmt)) {
+        return 1;
+    }
+
+    STMT_BIND(stmt, text, "@name", name, -1, SQLITE_STATIC);
+
+    int rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+
+    if (rc != SQLITE_DONE) {
+        log_print(ERR, "failed to delete tag(s): %s", sqlite3_errmsg(db));
+        return 1;
+    }
+
+    if (sqlite3_changes(db) == 0) {
+        log_print(WARN, "no tags were deleted");
+    }
+
+    return 0;
+}
+
+static int do_wipe(struct sqlite3* db) {
+    const char* sql = TOSTRING(
+        DELETE FROM history_tags;
+    );
+
+    if (sqlite3_exec(db, sql, NULL, NULL, NULL) != SQLITE_OK) {
+        log_print(ERR, "failed to delete tags: %s", sqlite3_errmsg(db));
+        return 1;
+    }
+
+    return 0;
+}
+
+int action_tags(int argc, char** argv, struct sqlite3* db) {
+    int retcode = 0;
+
+    int opt;
+    optreset = 1;
+    optind = 0;
+    while ((opt = getopt(argc, argv, ":h")) != -1) {
+        switch (opt) {
+        case 'h':
+            print_help();
+            return 0;
+        case '?':
+            log_print(ERR, "unknown option: %c", optopt);
+            return 1;
+        case ':':
+            log_print(ERR, "missing arg for %c", optopt);
+            return 1;
+        default:
+            log_print(ERR, "error while parsing command line options");
+            return 1;
+        }
+    }
+    argc = argc - optind;
+    argv = &argv[optind];
+
+    if (argc < 1 || STREQ(argv[0], "list")) {
+        if (argc > 1) {
+            log_print(ERR, "extra arguments on the command line");
+            return 1;
+        }
+
+        retcode = do_list(db);
+    } else if (STREQ(argv[0], "delete")) {
+        if (argc < 2) {
+            log_print(ERR, "tag name to delete is not specified");
+            return 1;
+        } else if (argc > 2) {
+            log_print(ERR, "extra arguments on the command line");
+            return 1;
+        }
+
+        retcode = do_delete(db, argv[1]);
+    } else if (STREQ(argv[0], "wipe")) {
+        if (argc > 1) {
+            log_print(ERR, "extra arguments on the command line");
+            return 1;
+        }
+
+        retcode = do_wipe(db);
+    } else {
+        log_print(ERR, "invalid argument to tags: %s", argv[0]);
+        return 1;
+    }
+
     return retcode;
 }
 
