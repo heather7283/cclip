@@ -77,8 +77,7 @@ static int parse_command_line(int argc, char** argv) {
             config.db_path = optarg;
             break;
         case 't':
-            config.accepted_mime_types[config.accepted_mime_types_count] = xstrdup(optarg);
-            config.accepted_mime_types_count += 1;
+            VEC_APPEND(&config.accepted_mime_types, &(char *){ xstrdup(optarg) });
             break;
         case 's':
             config.min_data_size = atoi(optarg);
@@ -161,9 +160,8 @@ int main(int argc, char** argv) {
 
     log_init(stderr, config.loglevel);
 
-    if (config.accepted_mime_types_count == 0) {
-        config.accepted_mime_types[0] = xstrdup("*");
-        config.accepted_mime_types_count = 1;
+    if (VEC_SIZE(&config.accepted_mime_types) == 0) {
+        VEC_APPEND(&config.accepted_mime_types, &(char *){ "*" });
     }
 
     db = db_open(config.db_path, config.create_db_if_not_exists);
@@ -320,11 +318,6 @@ cleanup:
     }
     if (epoll_fd > 0) {
         close(epoll_fd);
-    }
-
-    /* some unnecessary frees to make valgrind shut up */
-    for (int i = 0; i < config.accepted_mime_types_count; i++) {
-        free(config.accepted_mime_types[i]);
     }
 
     exit(exit_status);

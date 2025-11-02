@@ -44,6 +44,10 @@ void* xrealloc(void* ptr, size_t size) {
     return check_alloc(realloc(ptr, size));
 }
 
+void* xreallocarray(void* ptr, size_t n, size_t size) {
+    return check_alloc(reallocarray(ptr, n, size));
+}
+
 char* xstrdup(const char* s) {
     return s ? check_alloc(strdup(s)) : 0;
 }

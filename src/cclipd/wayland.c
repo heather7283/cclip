@@ -41,29 +41,23 @@ struct {
     bool seat_found;
 } wayland = {0};
 
-/* surely nobody will offer more than 32 mime types */
-#define MAX_OFFERED_MIME_TYPES 32
-/* https://stackoverflow.com/a/1849792 */
-#define MAX_MIME_TYPE_LEN 256
-static char offered_mime_types[MAX_OFFERED_MIME_TYPES][MAX_MIME_TYPE_LEN];
-static int offered_mime_types_count = 0;
+static VEC(char *) offered_mime_types;
 
-static bool pick_mime_type(char pick[MAX_MIME_TYPE_LEN]) {
+static const char *pick_mime_type(void) {
     /* finds first offered mime type that matches or returns NULL if none matched */
-    for (int i = 0; i < config.accepted_mime_types_count; i++) {
-        for (int j = 0; j < offered_mime_types_count; j++) {
-            const char* pattern = config.accepted_mime_types[i];
-            const char* type = offered_mime_types[j];
+    VEC_FOREACH(&config.accepted_mime_types, i) {
+        VEC_FOREACH(&offered_mime_types, j) {
+            const char* pattern = *VEC_AT_UNCHECKED(&config.accepted_mime_types, i);
+            const char* type = *VEC_AT_UNCHECKED(&offered_mime_types, j);
 
             if (fnmatch(pattern, type, 0) == 0) {
                 log_print(DEBUG, "selected mime type: %s", type);
-                strcpy(pick, type);
-                return true;
+                return type;
             }
         }
     }
 
-    return false;
+    return NULL;
 }
 
 static size_t receive_data(int fd, char** buffer) {
@@ -98,10 +92,10 @@ static size_t receive_data(int fd, char** buffer) {
 }
 
 static void receive_offer(struct zwlr_data_control_offer_v1* offer) {
-    char mime_type[MAX_MIME_TYPE_LEN];
     char* buffer = NULL;
 
-    if (!pick_mime_type(mime_type)) {
+    const char* selected_type = pick_mime_type();
+    if (selected_type == NULL) {
         log_print(DEBUG, "didn't match any mime type, not receiving this offer");
         goto out;
     }
@@ -113,7 +107,7 @@ static void receive_offer(struct zwlr_data_control_offer_v1* offer) {
     }
 
     log_print(TRACE, "receiving offer %p...", (void*)offer);
-    zwlr_data_control_offer_v1_receive(offer, mime_type, pipes[1]);
+    zwlr_data_control_offer_v1_receive(offer, selected_type, pipes[1]);
     /* make sure the sender received our request and is ready for transfer */
     wl_display_roundtrip(wayland.display);
     close(pipes[1]);
@@ -133,7 +127,7 @@ static void receive_offer(struct zwlr_data_control_offer_v1* offer) {
         goto out;
     }
 
-    if (!insert_db_entry(buffer, bytes_read, mime_type)) {
+    if (!insert_db_entry(buffer, bytes_read, selected_type)) {
         log_print(ERR, "failed to insert entry into database!");
     };
 
@@ -145,14 +139,7 @@ static void mime_type_offer_handler(void* data, struct zwlr_data_control_offer_v
                                     const char* mime_type) {
     log_print(TRACE, "got mime type offer %s for offer %p", mime_type, (void*)offer);
 
-    if (offered_mime_types_count >= MAX_OFFERED_MIME_TYPES) {
-        log_print(WARN, "offered_mime_types array is full, "
-                  "but another mime type was received! %s", mime_type);
-    } else {
-        snprintf(offered_mime_types[offered_mime_types_count],
-                 sizeof(offered_mime_types[offered_mime_types_count]), "%s", mime_type);
-        offered_mime_types_count += 1;
-    }
+    VEC_APPEND(&offered_mime_types, &(char *){ xstrdup(mime_type) });
 }
 
 const struct zwlr_data_control_offer_v1_listener data_control_offer_listener = {
@@ -162,8 +149,6 @@ const struct zwlr_data_control_offer_v1_listener data_control_offer_listener = {
 static void data_offer_handler(void* data, struct zwlr_data_control_device_v1* device,
                         struct zwlr_data_control_offer_v1* offer) {
     log_print(DEBUG, "got new wlr_data_control_offer %p", (void*)offer);
-
-    offered_mime_types_count = 0;
 
     zwlr_data_control_offer_v1_add_listener(offer, &data_control_offer_listener, NULL);
 }
@@ -181,6 +166,10 @@ static void common_selection_handler(struct zwlr_data_control_offer_v1* offer, b
 
     log_print(TRACE, "destroying offer %p", (void*)offer);
     zwlr_data_control_offer_v1_destroy(offer);
+    VEC_FOREACH(&offered_mime_types, i) {
+        free(*VEC_AT_UNCHECKED(&offered_mime_types, i));
+    }
+    VEC_CLEAR(&offered_mime_types);
 }
 
 static void selection_handler(void* data, struct zwlr_data_control_device_v1* device,

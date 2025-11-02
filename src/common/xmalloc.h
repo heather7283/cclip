@@ -19,6 +19,7 @@
 #pragma once
 
 #include <stddef.h>
+#include <stdlib.h>
 
 /* malloc, but aborts on alloc fail */
 void* xmalloc(size_t size);
@@ -26,6 +27,8 @@ void* xmalloc(size_t size);
 void* xcalloc(size_t n, size_t size);
 /* realloc, but aborts on alloc fail */
 void* xrealloc(void* ptr, size_t size);
+/* reallocarray, but aborts on alloc fail */
+void* xreallocarray(void* ptr, size_t n, size_t size);
 
 /* strdup, but aborts on alloc fail and returns NULL when called with NULL */
 char* xstrdup(const char* s);

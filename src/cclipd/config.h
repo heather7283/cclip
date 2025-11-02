@@ -22,11 +22,10 @@
 #include <stddef.h>
 
 #include "log.h"
+#include "collections/vec.h"
 
-#define MAX_ACCEPTED_MIME_TYPES 64
 struct config {
-    int accepted_mime_types_count;
-    char* accepted_mime_types[MAX_ACCEPTED_MIME_TYPES];
+    VEC(char *) accepted_mime_types;
     size_t min_data_size;
     const char* db_path;
     bool primary_selection;

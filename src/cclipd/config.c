@@ -19,7 +19,6 @@
 #include "config.h"
 
 struct config config = {
-    .accepted_mime_types_count = 0,
     .accepted_mime_types = {0},
     .min_data_size = 1,
     .db_path = NULL,

@@ -8,6 +8,7 @@ project(
 # supported by both clang and gcc and makes my life easier
 add_project_arguments('-Wno-gnu-zero-variadic-macro-arguments', language: 'c')
 add_project_arguments('-Wno-unused-parameter', language: 'c')
+add_project_arguments('-Wno-pedantic', language: 'c')
 
 # version, branch and commit info
 git_hash = run_command('git', 'rev-parse', 'HEAD', check: false).stdout().strip()
@@ -57,6 +58,7 @@ common_sources = files([
     'src/common/xmalloc.c',
     'src/common/db.c',
     'src/collections/string.c',
+    'src/collections/vec.c',
 ])
 
 cclip_sources = files([
