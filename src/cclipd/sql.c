@@ -23,7 +23,6 @@
 
 #include <sqlite3.h>
 
-#include "cclipd.h"
 #include "db.h"
 #include "sql.h"
 #include "config.h"
@@ -32,8 +31,35 @@
 #include "macros.h"
 #include "xxhash.h"
 
+#define RING_BUFFER_SIZE (16 + 1)
+
+struct queue_entry {
+    void* data;
+    size_t size;
+    char* mime;
+};
+
+static struct thread_state {
+    struct queue {
+        struct queue_entry ring[RING_BUFFER_SIZE];
+        unsigned read, write, size;
+    } buf;
+
+    bool should_exit;
+
+    pthread_t thread;
+    pthread_mutex_t mutex;
+    pthread_cond_t cond;
+} thread_state = {
+    .buf = {
+        .size = RING_BUFFER_SIZE,
+    },
+
+    .mutex = PTHREAD_MUTEX_INITIALIZER,
+    .cond = PTHREAD_COND_INITIALIZER,
+};
+
 struct db_entry {
-    int64_t rowid; /* https://www.sqlite.org/lang_createtable.html#rowid */
     const void* data; /* arbitrary data */
     int64_t data_size; /* size of data in bytes */
     uint64_t data_hash; /* xxhash3 */
@@ -81,7 +107,7 @@ static struct {
     )},
 };
 
-bool prepare_statements(void) {
+bool prepare_statements(struct sqlite3* db) {
     for (size_t i = 0; i < SIZEOF_ARRAY(statements); i++) {
         if (!db_prepare_stmt(db, statements[i].src, &statements[i].stmt)) {
             return false;
@@ -98,7 +124,7 @@ void cleanup_statements(void) {
     }
 }
 
-static bool begin_transaction(void) {
+static bool begin_transaction(struct sqlite3* db) {
     struct sqlite3_stmt* const stmt = statements[STMT_BEGIN].stmt;
     bool ret = true;
 
@@ -113,7 +139,7 @@ static bool begin_transaction(void) {
     return ret;
 }
 
-static bool rollback_transaction(void) {
+static bool rollback_transaction(struct sqlite3* db) {
     struct sqlite3_stmt* const stmt = statements[STMT_ROLLBACK].stmt;
     bool ret = true;
 
@@ -128,7 +154,7 @@ static bool rollback_transaction(void) {
     return ret;
 }
 
-static bool commit_transaction(void) {
+static bool commit_transaction(struct sqlite3* db) {
     struct sqlite3_stmt* const stmt = statements[STMT_COMMIT].stmt;
     bool ret = true;
 
@@ -143,7 +169,7 @@ static bool commit_transaction(void) {
     return ret;
 }
 
-static bool do_insert(const struct db_entry* e) {
+static bool do_insert(struct sqlite3* db, const struct db_entry* e) {
     struct sqlite3_stmt* const stmt = statements[STMT_INSERT].stmt;
     bool ret = true;
 
@@ -167,7 +193,7 @@ static bool do_insert(const struct db_entry* e) {
     return ret;
 }
 
-static bool do_delete_oldest(int keep_count) {
+static bool do_delete_oldest(struct sqlite3* db, int keep_count) {
     struct sqlite3_stmt* const stmt = statements[STMT_DELETE_OLDEST].stmt;
     bool ret = true;
 
@@ -186,12 +212,12 @@ static bool do_delete_oldest(int keep_count) {
     return ret;
 }
 
-bool insert_db_entry(const void* data, size_t data_size, const char* mime) {
+bool insert_db_entry(struct sqlite3* db, const void* data, size_t data_size, const char* mime) {
     const uint64_t data_hash = XXH3_64bits(data, data_size);
     const time_t timestamp = time(NULL);
     char* const preview = generate_preview(data, data_size, mime);
 
-    if (!begin_transaction()) {
+    if (!begin_transaction(db)) {
         free(preview);
         return false;
     }
@@ -204,20 +230,20 @@ bool insert_db_entry(const void* data, size_t data_size, const char* mime) {
         .preview = preview,
         .timestamp = timestamp,
     };
-    if (!do_insert(&entry)) {
+    if (!do_insert(db, &entry)) {
         goto rollback;
     } else if (config.max_entries_count > 0) {
         /* only run cleanup every `period` insertions */
         const int period = 10;
         static int counter = 0;
         if (counter++ % period == 0) {
-            if (!do_delete_oldest(config.max_entries_count)) {
+            if (!do_delete_oldest(db, config.max_entries_count)) {
                 goto rollback;
             }
         }
     }
 
-    if (!commit_transaction()) {
+    if (!commit_transaction(db)) {
         goto rollback;
     }
 
@@ -226,7 +252,122 @@ bool insert_db_entry(const void* data, size_t data_size, const char* mime) {
 
 rollback:
     free(preview);
-    rollback_transaction();
+    rollback_transaction(db);
     return false;
+}
+
+static void queue_entry_free_contents(struct queue_entry* e) {
+    free(e->data);
+    free(e->mime);
+}
+
+static void queue_push(struct queue_entry entry) {
+    struct queue* q = &thread_state.buf;
+
+    if ((q->write + 1) % q->size == q->read) {
+        /* buffer is full, discard oldest entry */
+        log_print(WARN, "ring buffer is full, discarding oldest entry!");
+
+        struct queue_entry* old = &q->ring[q->write];
+        queue_entry_free_contents(old);
+
+        q->read = (q->read + 1) % q->size;
+    }
+
+    q->ring[q->write] = entry;
+    q->write = (q->write + 1) % q->size;
+}
+
+static bool queue_pop(struct queue_entry* entry) {
+    struct queue* q = &thread_state.buf;
+
+    if (q->read == q->write) {
+        return false;
+    }
+
+    *entry = q->ring[q->read];
+    q->read = (q->read + 1) % q->size;
+
+    return true;
+}
+
+static void* thread_entrypoint(void* data) {
+    struct sqlite3* db = data;
+
+    pthread_mutex_lock(&thread_state.mutex);
+    while (!thread_state.should_exit) {
+        /* wait for new entry to be queued (mutex must be held by us) */
+        pthread_cond_wait(&thread_state.cond, &thread_state.mutex);
+
+        /* we are now holding the mutex */
+
+        struct queue_entry entry;
+        if (!queue_pop(&entry)) {
+            log_print(WARN, "db thread woke up but buffer is empty?");
+            continue;
+        }
+
+        do {
+            /* release the mutex so that other thread can keep feeding data */
+            pthread_mutex_unlock(&thread_state.mutex);
+
+            insert_db_entry(db, entry.data, entry.size, entry.mime);
+            queue_entry_free_contents(&entry);
+
+            /* check for more entries in the buffer */
+            pthread_mutex_lock(&thread_state.mutex);
+        } while (queue_pop(&entry));
+    }
+
+    pthread_mutex_unlock(&thread_state.mutex);
+    cleanup_statements();
+
+    return NULL;
+}
+
+bool start_db_thread(struct sqlite3* db) {
+    if (!prepare_statements(db)) {
+        goto err;
+    }
+
+    log_print(DEBUG, "starting db thread");
+    thread_state.should_exit = false;
+    int ret = pthread_create(&thread_state.thread, NULL, thread_entrypoint, db);
+    if (ret != 0) {
+        log_print(ERR, "failed to create thread: %s", strerror(ret));
+        goto err;
+    }
+
+    return true;
+
+err:
+    thread_state.should_exit = true;
+    cleanup_statements();
+    return false;
+}
+
+void stop_db_thread(void) {
+    if (thread_state.should_exit) {
+        /* already dead */
+        return;
+    }
+
+    log_print(DEBUG, "stopping db thread");
+
+    thread_state.should_exit = true;
+    pthread_cond_signal(&thread_state.cond);
+    pthread_join(thread_state.thread, NULL);
+}
+
+void queue_for_insertion(void *data, size_t size, char *mime) {
+    pthread_mutex_lock(&thread_state.mutex);
+    queue_push((struct queue_entry){
+        .data = data,
+        .size = size,
+        .mime = mime,
+    });
+    pthread_mutex_unlock(&thread_state.mutex);
+
+    pthread_cond_signal(&thread_state.cond);
 }
 

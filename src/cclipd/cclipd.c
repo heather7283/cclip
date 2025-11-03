@@ -24,7 +24,6 @@
 #include <errno.h>
 #include <stdlib.h>
 
-#include "cclipd.h"
 #include "wayland.h"
 #include "log.h"
 #include "db.h"
@@ -32,8 +31,6 @@
 #include "config.h"
 #include "xmalloc.h"
 #include "getopt.h"
-
-struct sqlite3* db = NULL;
 
 #define EPOLL_MAX_EVENTS 16
 
@@ -132,18 +129,9 @@ static int parse_command_line(int argc, char** argv) {
     return 0;
 }
 
-static bool reopen_database(void) {
-    cleanup_statements();
-    db_close(db);
-
-    db = db_open(config.db_path, config.create_db_if_not_exists);
-    if (db == NULL) {
-        return false;
-    }
-    return prepare_statements();
-}
-
 int main(int argc, char** argv) {
+    struct sqlite3* db = NULL;
+
     int epoll_fd = -1;
     int signal_fd = -1;
     int wayland_fd = -1;
@@ -197,20 +185,7 @@ int main(int argc, char** argv) {
         log_print(INFO, "opened database version %d", user_version);
     }
 
-    if (!prepare_statements()) {
-        log_print(ERR, "failed to prepare sql statements");
-        exit_status = 1;
-        goto cleanup;
-    }
-
-    wayland_fd = wayland_init();
-    if (wayland_fd < 0) {
-        log_print(ERR, "failed to init wayland stuff");
-        exit_status = 1;
-        goto cleanup;
-    };
-
-    /* block signals so we can catch them later */
+    /* block signals so we can catch them later, do it BEFORE thread creation */
     sigset_t mask;
     sigemptyset(&mask);
     sigaddset(&mask, SIGINT);
@@ -221,6 +196,19 @@ int main(int argc, char** argv) {
         exit_status = 1;
         goto cleanup;
     }
+
+    if (!start_db_thread(db)) {
+        log_print(ERR, "failed to start db thread");
+        exit_status = 1;
+        goto cleanup;
+    }
+
+    wayland_fd = wayland_init();
+    if (wayland_fd < 0) {
+        log_print(ERR, "failed to init wayland stuff");
+        exit_status = 1;
+        goto cleanup;
+    };
 
     /* set up signalfd */
     signal_fd = signalfd(-1, &mask, 0);
@@ -297,18 +285,26 @@ int main(int argc, char** argv) {
                     goto cleanup;
                 case SIGUSR1:
                     log_print(INFO, "received SIGUSR1, closing and reopening db connection");
-                    if (!reopen_database()) {
+                    stop_db_thread();
+                    db_close(db);
+
+                    if ((db = db_open(config.db_path, config.create_db_if_not_exists)) == NULL) {
                         log_print(ERR, "failed to reopen database");
                         exit_status = 1;
                         goto cleanup;
                     };
+                    if (!start_db_thread(db)) {
+                        log_print(ERR, "failed to start db thread");
+                        exit_status = 1;
+                        goto cleanup;
+                    }
                     break;
                 }
             }
         }
     }
 cleanup:
-    cleanup_statements();
+    stop_db_thread();
     db_close(db);
 
     wayland_cleanup();

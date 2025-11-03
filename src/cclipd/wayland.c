@@ -95,13 +95,13 @@ static void receive_offer(struct zwlr_data_control_offer_v1* offer) {
     const char* selected_type = pick_mime_type();
     if (selected_type == NULL) {
         log_print(DEBUG, "didn't match any mime type, not receiving this offer");
-        goto out;
+        return;
     }
 
     int pipes[2];
     if (pipe(pipes) == -1) {
         log_print(ERR, "failed to create pipe");
-        goto out;
+        return;
     }
 
     log_print(TRACE, "receiving offer %p...", (void*)offer);
@@ -115,22 +115,17 @@ static void receive_offer(struct zwlr_data_control_offer_v1* offer) {
 
     if (bytes_read == 0) {
         log_print(WARN, "received 0 bytes");
-        goto out;
     } else {
         log_print(DEBUG, "received %" PRIu64 " bytes", bytes_read);
     }
 
     if (bytes_read < config.min_data_size) {
         log_print(DEBUG, "received less bytes than min_data_size, not saving this entry");
-        goto out;
+        free(buffer);
+        return;
     }
 
-    if (!insert_db_entry(buffer, bytes_read, selected_type)) {
-        log_print(ERR, "failed to insert entry into database!");
-    };
-
-out:
-    free(buffer);
+    queue_for_insertion(buffer, bytes_read, xstrdup(selected_type));
 }
 
 static void mime_type_offer_handler(void* data, struct zwlr_data_control_offer_v1* offer,

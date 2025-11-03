@@ -18,5 +18,3 @@
 
 #pragma once
 
-extern struct sqlite3* db;
-
