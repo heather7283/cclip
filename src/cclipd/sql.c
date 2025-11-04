@@ -276,6 +276,8 @@ static void queue_push(struct queue_entry entry) {
 
     q->ring[q->write] = entry;
     q->write = (q->write + 1) % q->size;
+
+    log_print(TRACE, "added entry to queue, write %d read %d", q->write, q->read);
 }
 
 static bool queue_pop(struct queue_entry* entry) {
@@ -287,6 +289,8 @@ static bool queue_pop(struct queue_entry* entry) {
 
     *entry = q->ring[q->read];
     q->read = (q->read + 1) % q->size;
+
+    log_print(TRACE, "removed entry from queue, write %d read %d", q->write, q->read);
 
     return true;
 }

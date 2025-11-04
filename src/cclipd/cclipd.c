@@ -18,10 +18,8 @@
 
 #include <sys/signalfd.h>
 #include <sys/epoll.h>
-#include <string.h>
 #include <unistd.h>
 #include <signal.h>
-#include <errno.h>
 #include <stdlib.h>
 
 #include "wayland.h"
@@ -29,6 +27,7 @@
 #include "db.h"
 #include "sql.h"
 #include "config.h"
+#include "eventloop.h"
 #include "xmalloc.h"
 #include "getopt.h"
 
@@ -129,13 +128,42 @@ static int parse_command_line(int argc, char** argv) {
     return 0;
 }
 
+static int on_sigint_sigterm(struct pollen_event_source* src, int sig, void* data) {
+    pollen_loop_quit(eventloop, 0);
+    return 0;
+}
+
+static int on_sigusr1(struct pollen_event_source* src, int sig, void* data) {
+    struct sqlite3** pdb = data;
+
+    log_print(INFO, "received SIGUSR1, closing and reopening db connection");
+    stop_db_thread();
+    db_close(*pdb);
+
+    if ((*pdb = db_open(config.db_path, config.create_db_if_not_exists)) == NULL) {
+        log_print(ERR, "failed to reopen database");
+        return -1;
+    };
+    if (!start_db_thread(*pdb)) {
+        log_print(ERR, "failed to start db thread");
+        return -1;
+    }
+
+    return 0;
+}
+
+static int on_wayland_events(struct pollen_event_source* src, int fd, uint32_t ev, void* data) {
+    if (wayland_process_events() < 0) {
+        log_print(ERR, "failed to process wayland events");
+        return -1;
+    }
+
+    return 0;
+}
+
 int main(int argc, char** argv) {
     struct sqlite3* db = NULL;
-
-    int epoll_fd = -1;
-    int signal_fd = -1;
     int wayland_fd = -1;
-
     int exit_status = 0;
 
     log_init(stderr, ERR);
@@ -185,18 +213,18 @@ int main(int argc, char** argv) {
         log_print(INFO, "opened database version %d", user_version);
     }
 
-    /* block signals so we can catch them later, do it BEFORE thread creation */
-    sigset_t mask;
-    sigemptyset(&mask);
-    sigaddset(&mask, SIGINT);
-    sigaddset(&mask, SIGTERM);
-    sigaddset(&mask, SIGUSR1);
-    if (sigprocmask(SIG_BLOCK, &mask, NULL) == -1) {
-        log_print(ERR, "failed to block signals: %s", strerror(errno));
+    eventloop = pollen_loop_create();
+    if (eventloop == NULL) {
         exit_status = 1;
         goto cleanup;
     }
 
+    pollen_loop_add_signal(eventloop, SIGINT, on_sigint_sigterm, NULL);
+    pollen_loop_add_signal(eventloop, SIGTERM, on_sigint_sigterm, NULL);
+
+    pollen_loop_add_signal(eventloop, SIGUSR1, on_sigusr1, &db);
+
+    /* important to start db thread after blocking signals */
     if (!start_db_thread(db)) {
         log_print(ERR, "failed to start db thread");
         exit_status = 1;
@@ -210,112 +238,16 @@ int main(int argc, char** argv) {
         goto cleanup;
     };
 
-    /* set up signalfd */
-    signal_fd = signalfd(-1, &mask, 0);
-    if (signal_fd == -1) {
-        log_print(ERR, "failed to set up signalfd: %s", strerror(errno));
-        exit_status = 1;
-        goto cleanup;
-    }
+    pollen_loop_add_fd(eventloop, wayland_fd, EPOLLIN, false, on_wayland_events, NULL);
 
-    /* set up epoll */
-    epoll_fd = epoll_create1(0);
-    if (epoll_fd == -1) {
-        log_print(ERR, "failed to set up epoll: %s", strerror(errno));
-        exit_status = 1;
-        goto cleanup;
-    }
+    exit_status = pollen_loop_run(eventloop);
 
-    struct epoll_event epoll_event;
-    /* add wayland fd to epoll interest list */
-    epoll_event.events = EPOLLIN;
-    epoll_event.data.fd = wayland_fd;
-    if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, wayland_fd, &epoll_event) == -1) {
-        log_print(ERR, "failed to add wayland fd to epoll list: %s", strerror(errno));
-        exit_status = 1;
-        goto cleanup;
-    }
-    /* add signal fd to epoll interest list */
-    epoll_event.events = EPOLLIN;
-    epoll_event.data.fd = signal_fd;
-    if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, signal_fd, &epoll_event) == -1) {
-        log_print(ERR, "failed to add signal fd to epoll list: %s", strerror(errno));
-        exit_status = 1;
-        goto cleanup;
-    }
-
-    int number_fds = -1;
-    struct epoll_event events[EPOLL_MAX_EVENTS];
-    while (true) {
-        /* main event loop */
-        do {
-            number_fds = epoll_wait(epoll_fd, events, EPOLL_MAX_EVENTS, -1);
-        } while (number_fds == -1 && errno == EINTR); /* epoll_wait failing with EINTR is normal */
-
-        if (number_fds == -1) {
-            log_print(ERR, "epoll_wait error: %s", strerror(errno));
-            exit_status = 1;
-            goto cleanup;
-        }
-
-        /* handle events */
-        for (int n = 0; n < number_fds; n++) {
-            if (events[n].data.fd == wayland_fd) {
-                /* wayland events */
-                if (wayland_process_events() < 0) {
-                    log_print(ERR, "failed to process wayland events");
-                    exit_status = 1;
-                    goto cleanup;
-                }
-            } else if (events[n].data.fd == signal_fd) {
-                /* signals */
-                struct signalfd_siginfo siginfo;
-                ssize_t bytes_read = read(signal_fd, &siginfo, sizeof(siginfo));
-                if (bytes_read != sizeof(siginfo)) {
-                    log_print(ERR, "failed to read signalfd_siginfo from signal_fd");
-                    exit_status = 1;
-                    goto cleanup;
-                }
-
-                uint32_t signo = siginfo.ssi_signo;
-                switch (signo) {
-                case SIGINT:
-                case SIGTERM:
-                    log_print(INFO, "received signal %d, exiting", signo);
-                    goto cleanup;
-                case SIGUSR1:
-                    log_print(INFO, "received SIGUSR1, closing and reopening db connection");
-                    stop_db_thread();
-                    db_close(db);
-
-                    if ((db = db_open(config.db_path, config.create_db_if_not_exists)) == NULL) {
-                        log_print(ERR, "failed to reopen database");
-                        exit_status = 1;
-                        goto cleanup;
-                    };
-                    if (!start_db_thread(db)) {
-                        log_print(ERR, "failed to start db thread");
-                        exit_status = 1;
-                        goto cleanup;
-                    }
-                    break;
-                }
-            }
-        }
-    }
 cleanup:
     stop_db_thread();
     db_close(db);
 
     wayland_cleanup();
 
-    if (signal_fd > 0) {
-        close(signal_fd);
-    }
-    if (epoll_fd > 0) {
-        close(epoll_fd);
-    }
-
-    exit(exit_status);
+    return exit_status;
 }
 

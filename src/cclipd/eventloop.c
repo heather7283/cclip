@@ -16,5 +16,17 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#pragma once
+#include "log.h"
+#define POLLEN_LOG_INFO(fmt, ...) log_print(INFO, fmt, ##__VA_ARGS__)
+#define POLLEN_LOG_WARN(fmt, ...) log_print(WARN, fmt, ##__VA_ARGS__)
+#define POLLEN_LOG_ERR(fmt, ...) log_print(ERR, fmt, ##__VA_ARGS__)
+
+#include "xmalloc.h"
+#define POLLEN_CALLOC(n, size) xcalloc((n), (size))
+#define POLLEN_FREE(ptr) free(ptr)
+
+#define POLLEN_IMPLEMENTATION
+#include "eventloop.h"
+
+struct pollen_loop* eventloop = NULL;
 
