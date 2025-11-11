@@ -37,8 +37,6 @@ struct {
     struct wl_registry* registry;
     struct zwlr_data_control_manager_v1* data_control_manager;
     struct zwlr_data_control_device_v1* data_control_device;
-
-    bool seat_found;
 } wayland = {0};
 
 static VEC(char *) offered_mime_types;
@@ -192,9 +190,8 @@ static const struct zwlr_data_control_device_v1_listener data_control_device_lis
 
 static void registry_global(void* data, struct wl_registry* registry, uint32_t name,
                             const char* interface, uint32_t version) {
-    if (!wayland.seat_found && strcmp(interface, "wl_seat") == 0) {
+    if (wayland.seat == NULL && strcmp(interface, "wl_seat") == 0) {
         wayland.seat = wl_registry_bind(registry, name, &wl_seat_interface, 2);
-        wayland.seat_found = true;
     } else if (strcmp(interface, "zwlr_data_control_manager_v1") == 0) {
         wayland.data_control_manager =
             wl_registry_bind(registry, name, &zwlr_data_control_manager_v1_interface, 2);
