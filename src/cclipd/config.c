@@ -23,6 +23,7 @@ struct config config = {
     .min_data_size = 1,
     .db_path = NULL,
     .primary_selection = false,
+    .ignore_secrets = true,
     .max_entries_count = 1000,
     .create_db_if_not_exists = true,
     .preview_len = 128,

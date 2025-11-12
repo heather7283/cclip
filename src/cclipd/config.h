@@ -29,6 +29,7 @@ struct config {
     size_t min_data_size;
     const char* db_path;
     bool primary_selection;
+    bool ignore_secrets;
     int max_entries_count;
     bool create_db_if_not_exists;
     size_t preview_len;

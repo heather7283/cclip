@@ -34,16 +34,13 @@ static void print_version_and_exit(void) {
 }
 
 static void print_help_and_exit(int exit_status) {
-    const char* help_string =
+    static const char help_string[] =
         "cclipd - clipboard manager daemon\n"
         "\n"
         "usage:\n"
         "    cclipd [OPTIONS]\n"
         "\n"
         "command line options:\n"
-        "    -V             display version and exit\n"
-        "    -h             print this help message and exit\n"
-        "    -v             increase verbosity\n"
         "    -d DB_PATH     specify path to databse file\n"
         "    -t PATTERN     specify MIME type pattern to accept,\n"
         "                   can be supplied multiple times\n"
@@ -52,7 +49,12 @@ static void print_help_and_exit(int exit_status) {
         "    -c ENTRIES     max count of entries to keep in database\n"
         "    -P PREVIEW_LEN max length of preview to generate in bytes\n"
         "    -p             also monitor primary selection\n"
-        "    -e             error out if database file does not exist\n";
+        "    -S             do not ignore data marked as secret (passwords)\n"
+        "    -e             error out if database file does not exist\n"
+        "    -v             increase verbosity (can be specified multiple times)\n"
+        "    -V             display version and exit\n"
+        "    -h             print this help message and exit\n"
+    ;
 
     fputs(help_string, stderr);
     exit(exit_status);
@@ -61,7 +63,7 @@ static void print_help_and_exit(int exit_status) {
 static int parse_command_line(int argc, char** argv) {
     int opt;
 
-    while ((opt = getopt(argc, argv, ":d:t:s:c:P:pevVh")) != -1) {
+    while ((opt = getopt(argc, argv, ":d:t:s:c:P:pSevVh")) != -1) {
         switch (opt) {
         case 'd':
             config.db_path = optarg;
@@ -92,6 +94,9 @@ static int parse_command_line(int argc, char** argv) {
             break;
         case 'p':
             config.primary_selection = true;
+            break;
+        case 'S':
+            config.ignore_secrets = false;
             break;
         case 'e':
             config.create_db_if_not_exists = false;

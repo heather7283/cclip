@@ -182,8 +182,8 @@ loop_out:
         return;
     }
 
-    if (is_secret(co)) {
-        log_print(DEBUG, "offer has x-kde-passwordManagerHint=secret, ignoring");
+    if (config.ignore_secrets && is_secret(co)) {
+        log_print(DEBUG, "offer is marked as secret, ignoring");
         return;
     }
 
