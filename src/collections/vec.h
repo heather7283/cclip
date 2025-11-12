@@ -126,8 +126,8 @@ void *vec_append_generic(struct vec_generic *vec, const void *elems,
 
 #define VEC_EMPLACE_BACK_INTERNAL_DO_NOT_USE(pvec, nelem, zeroed) ({ \
     VEC_TYPECHECK_SELF(pvec); \
-    VEC_TYPEOF_DATA(pvec)vec_append_generic((struct vec_generic *)(pvec), NULL, \
-                                            VEC_SIZEOF_DATA(pvec), (nelem), (zeroed)); \
+    (VEC_TYPEOF_DATA(pvec))vec_append_generic((struct vec_generic *)(pvec), NULL, \
+                                              VEC_SIZEOF_DATA(pvec), (nelem), (zeroed)); \
 })
 
 #define VEC_EMPLACE_BACK_N(pvec, nelem) \
@@ -165,8 +165,8 @@ void *vec_at_generic(struct vec_generic *vec, size_t index, size_t elem_size);
 
 #define VEC_AT(pvec, index) ({ \
     VEC_TYPECHECK_SELF(pvec); \
-    VEC_TYPEOF_DATA(pvec)vec_at_generic((struct vec_generic *)(pvec), \
-                                        (index), VEC_SIZEOF_DATA(pvec)); \
+    (VEC_TYPEOF_DATA(pvec))vec_at_generic((struct vec_generic *)(pvec), \
+                                          (index), VEC_SIZEOF_DATA(pvec)); \
 })
 
 #define VEC_AT_UNCHECKED(pvec, index) (&(pvec)->data[index])
