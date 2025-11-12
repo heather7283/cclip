@@ -17,7 +17,7 @@
  */
 
 #include "log.h"
-#define POLLEN_LOG_INFO(fmt, ...) log_print(INFO, fmt, ##__VA_ARGS__)
+#define POLLEN_LOG_INFO(fmt, ...) log_print(DEBUG, fmt, ##__VA_ARGS__)
 #define POLLEN_LOG_WARN(fmt, ...) log_print(WARN, fmt, ##__VA_ARGS__)
 #define POLLEN_LOG_ERR(fmt, ...) log_print(ERR, fmt, ##__VA_ARGS__)
 
