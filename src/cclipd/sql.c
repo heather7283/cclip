@@ -307,7 +307,7 @@ static void* thread_entrypoint(void* data) {
 
         struct queue_entry entry;
         if (!queue_pop(&entry)) {
-            log_print(WARN, "db thread woke up but buffer is empty?");
+            /* if we woke up but queue is empty we most likely were asked to die. */
             continue;
         }
 
