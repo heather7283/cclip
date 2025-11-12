@@ -16,6 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#define _GNU_SOURCE
 #include <unistd.h>
 #include <string.h>
 #include <errno.h>
@@ -158,6 +159,9 @@ loop_out:
         log_print(ERR, "failed to set cloexec on pipe: %s", strerror(errno));
         goto err;
     }
+
+    /* make it big - don't really care if fails, transfer will just be slower */
+    fcntl(p.read, F_SETPIPE_SZ, 1 * 1024 * 1024 /* 1 MiB */);
 
     log_print(TRACE, "receiving offer %p...", (void*)co->offer);
     zwlr_data_control_offer_v1_receive(co->offer, selected_type->name, p.write);
