@@ -123,11 +123,12 @@ static void receive_offer(struct clipboard_offer* co) {
     struct pipe p = { .fds = { -1, -1 } };
 
     struct mime_type* selected_type = NULL;
-    VEC_FOREACH(&co->mime_types, i) {
-        struct mime_type* t = &co->mime_types.data[i];
+    VEC_FOREACH(&config.accepted_mime_types, i) {
+        const char* pattern = config.accepted_mime_types.data[i];
 
-        VEC_FOREACH(&config.accepted_mime_types, j) {
-            const char* pattern = config.accepted_mime_types.data[j];
+        VEC_FOREACH(&co->mime_types, j) {
+            struct mime_type* t = &co->mime_types.data[j];
+
             if (fnmatch(pattern, t->name, 0) == 0) {
                 log_print(DEBUG, "picked mime type: %s", t->name);
                 selected_type = t;
