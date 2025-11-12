@@ -90,7 +90,7 @@ static int on_pipe_ready(struct pollen_event_source* source, int fd, uint32_t ev
 
     while (available > 0) {
         ssize_t ret = read(fd, &od->data.data[od->data.size], available);
-        if (ret == -1 && errno != EAGAIN) {
+        if (ret == -1 && errno != EINTR) {
             log_print(ERR, "failed to read from pipe: %s", strerror(errno));
             goto free;
         }
@@ -145,16 +145,6 @@ loop_out:
     if (pipe(p.fds) == -1) {
         log_print(ERR, "failed to create pipe: %s", strerror(errno));
         return;
-    }
-
-    /*
-     * pipe2() exists, but we probably don't want to mess with an fd
-     * that will be sent to another process since it might assume its
-     * fd flags being set to default and shit itself if they are not
-     */
-    if (fcntl(p.read, F_SETFL, O_CLOEXEC) == -1) {
-        log_print(ERR, "failed to set cloexec on pipe: %s", strerror(errno));
-        goto err;
     }
 
     /* make it big - don't really care if fails, transfer will just be slower */
