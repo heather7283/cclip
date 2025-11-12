@@ -49,6 +49,9 @@ Default is 128.
 .B \-p
 Also monitor primary selection (disabled by default).
 .TP 4
+.B \-S
+Do not ignore data marked as secret. By default secret data like passwords is ignored.
+.TP 4
 .B \-e
 Exit with error if database doesn't exist instead of creating it.
 .TP 4
