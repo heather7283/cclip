@@ -18,12 +18,14 @@
 
 #pragma once
 
-#include <stdint.h>
-#include <time.h>
 #include <stdbool.h>
+#include <pthread.h>
 
-bool prepare_statements(void);
-void cleanup_statements(void);
+#include <sqlite3.h>
 
-bool insert_db_entry(const void* data, size_t data_size, const char* mime);
+bool start_db_thread(struct sqlite3* db);
+void stop_db_thread(void);
+
+/* expects mallocd pointers and takes ownership of both of them */
+void queue_for_insertion(void *data, size_t size, char *mime);
 

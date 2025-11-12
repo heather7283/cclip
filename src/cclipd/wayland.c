@@ -16,11 +16,14 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#define _GNU_SOURCE
 #include <unistd.h>
 #include <string.h>
 #include <errno.h>
 #include <fnmatch.h>
 #include <stdlib.h>
+#include <fcntl.h>
+
 #include <wayland-client.h>
 
 #include "wayland.h"
@@ -28,158 +31,232 @@
 #include "config.h"
 #include "log.h"
 #include "xmalloc.h"
+#include "eventloop.h"
+
 #include "wlr-data-control-unstable-v1.h"
 
-struct {
+struct pipe {
+    union {
+        int fds[2];
+        struct {
+            int read;
+            int write;
+        };
+    };
+};
+
+struct mime_type {
+    char name[256]; /* https://stackoverflow.com/a/643772 */
+};
+
+struct clipboard_offer {
+    struct zwlr_data_control_offer_v1* offer;
+    VEC(struct mime_type) mime_types;
+};
+
+struct clipboard_offer_data {
+    VEC(uint8_t) data;
+    struct mime_type type;
+    struct pollen_event_source* fd_source;
+};
+
+static struct {
     int fd;
     struct wl_display* display;
     struct wl_seat* seat;
     struct wl_registry* registry;
     struct zwlr_data_control_manager_v1* data_control_manager;
     struct zwlr_data_control_device_v1* data_control_device;
+
+    struct clipboard_offer offer;
 } wayland = {0};
 
-static VEC(char *) offered_mime_types;
+static void mime_type_copy(struct mime_type* dst, const struct mime_type* src) {
+    memcpy(dst->name, src->name, sizeof(dst->name));
+}
 
-static const char *pick_mime_type(void) {
-    /* finds first offered mime type that matches or returns NULL if none matched */
-    VEC_FOREACH(&config.accepted_mime_types, i) {
-        VEC_FOREACH(&offered_mime_types, j) {
-            const char* pattern = *VEC_AT_UNCHECKED(&config.accepted_mime_types, i);
-            const char* type = *VEC_AT_UNCHECKED(&offered_mime_types, j);
+static int on_pipe_ready(struct pollen_event_source* source, int fd, uint32_t ev, void* data) {
+    struct clipboard_offer_data* od = data;
+    bool free_vec = true;
 
-            if (fnmatch(pattern, type, 0) == 0) {
-                log_print(DEBUG, "selected mime type: %s", type);
-                return type;
+    /* TODO: maybe just read into static buffer and memcpy into vec instead? */
+    int available;
+    if (ioctl(fd, FIONREAD, &available) == -1) {
+        log_print(ERR, "failed to retrieve number of bytes in a pipe: %s", strerror(errno));
+        goto free;
+    }
+
+    VEC_RESERVE(&od->data, od->data.size + available);
+
+    while (available > 0) {
+        ssize_t ret = read(fd, &od->data.data[od->data.size], available);
+        if (ret == -1 && errno != EAGAIN) {
+            log_print(ERR, "failed to read from pipe: %s", strerror(errno));
+            goto free;
+        }
+
+        available -= ret;
+        od->data.size += ret;
+    }
+
+    if (ev & EPOLLHUP) {
+        /* writing client closed its end of the pipe - finalize transfer */
+        queue_for_insertion(od->data.data, od->data.size, xstrdup(od->type.name));
+        free_vec = false;
+        goto free;
+    }
+
+    return 0;
+
+free:
+    pollen_event_source_remove(source);
+    if (free_vec) {
+        VEC_FREE(&od->data);
+    }
+    free(od);
+
+    return 0;
+}
+
+static void receive_offer(struct clipboard_offer* co) {
+    struct clipboard_offer_data* od = NULL;
+    struct pipe p = { .fds = { -1, -1 } };
+
+    struct mime_type* selected_type = NULL;
+    VEC_FOREACH(&co->mime_types, i) {
+        struct mime_type* t = &co->mime_types.data[i];
+
+        VEC_FOREACH(&config.accepted_mime_types, j) {
+            const char* pattern = config.accepted_mime_types.data[j];
+            if (fnmatch(pattern, t->name, 0) == 0) {
+                log_print(DEBUG, "picked mime type: %s", t->name);
+                selected_type = t;
+                goto loop_out;
             }
         }
     }
-
-    return NULL;
-}
-
-static size_t receive_data(int fd, char** buffer) {
-    /* reads offer into buffer, returns number of bytes read */
-
-    /* is it really a good idea to multiply buffer size by 2 every time? */
-    const size_t INITIAL_BUFFER_SIZE = 4096;
-    const int GROWTH_FACTOR = 2;
-
-    *buffer = xmalloc(INITIAL_BUFFER_SIZE);
-
-    size_t buffer_size = INITIAL_BUFFER_SIZE;
-    size_t total_read = 0;
-    ssize_t bytes_read;
-
-    while ((bytes_read = read(fd, *buffer + total_read, buffer_size - total_read)) > 0) {
-        total_read += bytes_read;
-
-        if (total_read == buffer_size) {
-            buffer_size *= GROWTH_FACTOR;
-            *buffer = xrealloc(*buffer, buffer_size);
-        }
-    }
-
-    if (bytes_read == -1) {
-        log_print(ERR, "error reading from pipe: %s", strerror(errno));
-    }
-
-    close(fd);
-
-    return total_read;
-}
-
-static void receive_offer(struct zwlr_data_control_offer_v1* offer) {
-    char* buffer = NULL;
-
-    const char* selected_type = pick_mime_type();
+loop_out:
     if (selected_type == NULL) {
         log_print(DEBUG, "didn't match any mime type, not receiving this offer");
-        goto out;
+        return;
     }
 
-    int pipes[2];
-    if (pipe(pipes) == -1) {
-        log_print(ERR, "failed to create pipe");
-        goto out;
+    /* create a pipe for data transfer between us and source client */
+    if (pipe(p.fds) == -1) {
+        log_print(ERR, "failed to create pipe: %s", strerror(errno));
+        return;
     }
 
-    log_print(TRACE, "receiving offer %p...", (void*)offer);
-    zwlr_data_control_offer_v1_receive(offer, selected_type, pipes[1]);
+    /*
+     * pipe2() exists, but we probably don't want to mess with an fd
+     * that will be sent to another process since it might assume its
+     * fd flags being set to default and shit itself if they are not
+     */
+    if (fcntl(p.read, F_SETFL, O_CLOEXEC) == -1) {
+        log_print(ERR, "failed to set cloexec on pipe: %s", strerror(errno));
+        goto err;
+    }
+
+    /* make it big - don't really care if fails, transfer will just be slower */
+    fcntl(p.read, F_SETPIPE_SZ, 1 * 1024 * 1024 /* 1 MiB */);
+
+    log_print(TRACE, "receiving offer %p...", (void*)co->offer);
+    zwlr_data_control_offer_v1_receive(co->offer, selected_type->name, p.write);
+
     /* make sure the sender received our request and is ready for transfer */
     wl_display_roundtrip(wayland.display);
-    close(pipes[1]);
 
-    size_t bytes_read = receive_data(pipes[0], &buffer);
-    log_print(TRACE, "done receiving offer %p", (void*)offer);
+    /* close writing end on our side, we don't need it */
+    close(p.write);
 
-    if (bytes_read == 0) {
-        log_print(WARN, "received 0 bytes");
-        goto out;
+    od = xcalloc(1, sizeof(*od));
+    mime_type_copy(&od->type, selected_type);
+
+    od->fd_source = pollen_loop_add_fd(eventloop, p.read, EPOLLIN, true, on_pipe_ready, od);
+    if (od->fd_source == NULL) {
+        log_print(ERR, "failed to add pipe fd to event loop: %s", strerror(errno));
+        goto err;
+    }
+
+    return;
+
+err:
+    if (od != NULL) {
+        free(od);
+    }
+    if (p.read > 0) {
+        close(p.read);
+    }
+    if (p.write > 0) {
+        close(p.write);
+    }
+}
+
+static void common_selection_handler(struct clipboard_offer* co, bool primary) {
+    if (!primary || config.primary_selection) {
+        receive_offer(co);
     } else {
-        log_print(DEBUG, "received %" PRIu64 " bytes", bytes_read);
+        log_print(DEBUG, "ignoring primary selection event for offer %p", (void*)co);
     }
 
-    if (bytes_read < config.min_data_size) {
-        log_print(DEBUG, "received less bytes than min_data_size, not saving this entry");
-        goto out;
+    log_print(TRACE, "destroying offer %p", (void*)co);
+    zwlr_data_control_offer_v1_destroy(co->offer);
+    co->offer = NULL;
+}
+
+static void selection_handler(void* data, struct zwlr_data_control_device_v1* device,
+                              struct zwlr_data_control_offer_v1* offer) {
+    log_print(DEBUG, "got selection event for offer %p", (void*)offer);
+    if (offer == NULL) {
+        return;
     }
 
-    if (!insert_db_entry(buffer, bytes_read, selected_type)) {
-        log_print(ERR, "failed to insert entry into database!");
-    };
+    struct clipboard_offer* co = &wayland.offer;
+    common_selection_handler(co, false);
+}
 
-out:
-    free(buffer);
+static void primary_selection_handler(void* data, struct zwlr_data_control_device_v1* device,
+                                      struct zwlr_data_control_offer_v1* offer) {
+    log_print(DEBUG, "got primary selection event for offer %p", (void*)offer);
+    if (offer == NULL) {
+        return;
+    }
+
+    struct clipboard_offer* co = &wayland.offer;
+    common_selection_handler(co, true);
 }
 
 static void mime_type_offer_handler(void* data, struct zwlr_data_control_offer_v1* offer,
                                     const char* mime_type) {
     log_print(TRACE, "got mime type offer %s for offer %p", mime_type, (void*)offer);
 
-    VEC_APPEND(&offered_mime_types, &(char *){ xstrdup(mime_type) });
+    struct clipboard_offer* co = data;
+    size_t mime_type_len = strlen(mime_type);
+    if (mime_type_len > 255) {
+        log_print(ERR, "mime type is too long (%zu): %s", mime_type_len, mime_type);
+        return;
+    }
+
+    struct mime_type* t = VEC_EMPLACE_BACK(&co->mime_types);
+    memcpy(&t->name, mime_type, mime_type_len);
+    t->name[mime_type_len] = '\0';
 }
 
-const struct zwlr_data_control_offer_v1_listener data_control_offer_listener = {
+static const struct zwlr_data_control_offer_v1_listener data_control_offer_listener = {
     .offer = mime_type_offer_handler,
 };
 
 static void data_offer_handler(void* data, struct zwlr_data_control_device_v1* device,
-                        struct zwlr_data_control_offer_v1* offer) {
+                               struct zwlr_data_control_offer_v1* offer) {
     log_print(DEBUG, "got new wlr_data_control_offer %p", (void*)offer);
 
-    zwlr_data_control_offer_v1_add_listener(offer, &data_control_offer_listener, NULL);
-}
+    struct clipboard_offer* co = &wayland.offer;
+    co->offer = offer;
 
-static void common_selection_handler(struct zwlr_data_control_offer_v1* offer, bool primary) {
-    if (offer == NULL) {
-        return;
+    if (offer != NULL) {
+        VEC_CLEAR(&co->mime_types);
+        zwlr_data_control_offer_v1_add_listener(co->offer, &data_control_offer_listener, co);
     }
-
-    if (!primary || config.primary_selection) {
-        receive_offer(offer);
-    } else {
-        log_print(DEBUG, "ignoring primary selection event for offer %p", (void*)offer);
-    }
-
-    log_print(TRACE, "destroying offer %p", (void*)offer);
-    zwlr_data_control_offer_v1_destroy(offer);
-    VEC_FOREACH(&offered_mime_types, i) {
-        free(*VEC_AT_UNCHECKED(&offered_mime_types, i));
-    }
-    VEC_CLEAR(&offered_mime_types);
-}
-
-static void selection_handler(void* data, struct zwlr_data_control_device_v1* device,
-                              struct zwlr_data_control_offer_v1* offer) {
-    log_print(DEBUG, "got selection event for offer %p", (void*)offer);
-    common_selection_handler(offer, false);
-}
-
-static void primary_selection_handler(void* data, struct zwlr_data_control_device_v1* device,
-                                      struct zwlr_data_control_offer_v1* offer) {
-    log_print(DEBUG, "got primary selection event for offer %p", (void*)offer);
-    common_selection_handler(offer, true);
 }
 
 static const struct zwlr_data_control_device_v1_listener data_control_device_listener = {
@@ -207,6 +284,15 @@ static const struct wl_registry_listener registry_listener = {
     .global_remove = registry_global_remove,
 };
 
+static int on_wayland_events(struct pollen_event_source* src, int fd, uint32_t ev, void* data) {
+    if (wl_display_dispatch(wayland.display) < 0) {
+        log_print(ERR, "failed to process wayland events: %s", errno);
+        return -1;
+    }
+
+    return 0;
+}
+
 int wayland_init(void) {
     wayland.display = wl_display_connect(NULL);
     if (wayland.display == NULL) {
@@ -215,6 +301,7 @@ int wayland_init(void) {
     }
 
     wayland.fd = wl_display_get_fd(wayland.display);
+    pollen_loop_add_fd(eventloop, wayland.fd, EPOLLIN, false, on_wayland_events, NULL);
 
     wayland.registry = wl_display_get_registry(wayland.display);
     if (wayland.registry == NULL) {
@@ -275,9 +362,5 @@ void wayland_cleanup(void) {
     if (wayland.display) {
         wl_display_disconnect(wayland.display);
     }
-}
-
-int wayland_process_events(void) {
-    return wl_display_dispatch(wayland.display);
 }
 

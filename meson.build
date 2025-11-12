@@ -49,6 +49,7 @@ getopt_lib = static_library('getopt', 'thirdparty/getopt/getopt.c')
 include_dirs = include_directories([
     'thirdparty/xxhash',
     'thirdparty/getopt',
+    'thirdparty/pollen',
     'src/common',
     'src'
 ])
@@ -79,6 +80,7 @@ cclipd_sources = files([
     'src/cclipd/wayland.c',
     'src/cclipd/preview.c',
     'src/cclipd/config.c',
+    'src/cclipd/eventloop.c',
 ])
 
 executable('cclip', cclip_sources + common_sources,

@@ -18,18 +18,7 @@
 
 #pragma once
 
-enum loglevel {
-    LOGLEVEL_SILENT,
+#include "pollen.h"
 
-    ERR,
-    WARN,
-    INFO,
-    DEBUG,
-    TRACE,
-
-    LOGLEVEL_MAX = TRACE
-};
-
-void log_init(int fd, enum loglevel level);
-void log_print(enum loglevel level, const char* fmt, ...);
+extern struct pollen_loop* eventloop;
 
