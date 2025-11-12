@@ -28,8 +28,9 @@
 
 #include "wayland.h"
 #include "sql.h"
-#include "config.h"
 #include "log.h"
+#include "config.h"
+#include "macros.h"
 #include "xmalloc.h"
 #include "eventloop.h"
 
@@ -140,6 +141,43 @@ loop_out:
     if (selected_type == NULL) {
         log_print(DEBUG, "didn't match any mime type, not receiving this offer");
         return;
+    }
+
+    /* check for x-kde-passwordManagerHint */
+    bool has_password_manager_hint = false;
+    VEC_FOREACH(&co->mime_types, i) {
+        const struct mime_type* t = &co->mime_types.data[i];
+
+        if (STREQ(t->name, "x-kde-passwordManagerHint")) {
+            log_print(DEBUG, "got x-kde-passwordManagerHint");
+            has_password_manager_hint = true;
+            break;
+        }
+    }
+    if (has_password_manager_hint) {
+        struct pipe p = { .fds = { -1, -1 } };
+
+        if (pipe(p.fds) == -1) {
+            log_print(ERR, "failed to create pipe: %s", strerror(errno));
+            return;
+        }
+
+        zwlr_data_control_offer_v1_receive(co->offer, "x-kde-passwordManagerHint", p.write);
+        wl_display_flush(wayland.display);
+        close(p.write);
+
+        /* No need to make this read async - expected data is tiny */
+        char buf[sizeof("secret")] = { '\0' };
+        ssize_t ret;
+        do {
+            ret = read(p.read, buf, sizeof(buf) - 1);
+        } while (ret < 0 && errno == EINTR);
+        close(p.read);
+
+        if (STREQ(buf, "secret")) {
+            log_print(DEBUG, "offer has x-kde-passwordManagerHint=secret, ignoring");
+            return;
+        }
     }
 
     /* create a pipe for data transfer between us and source client */
