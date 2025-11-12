@@ -119,37 +119,12 @@ free:
     return 0;
 }
 
-static void receive_offer(struct clipboard_offer* co) {
-    struct clipboard_offer_data* od = NULL;
-    struct pipe p = { .fds = { -1, -1 } };
-
-    struct mime_type* selected_type = NULL;
-    VEC_FOREACH(&config.accepted_mime_types, i) {
-        const char* pattern = config.accepted_mime_types.data[i];
-
-        VEC_FOREACH(&co->mime_types, j) {
-            struct mime_type* t = &co->mime_types.data[j];
-
-            if (fnmatch(pattern, t->name, 0) == 0) {
-                log_print(DEBUG, "picked mime type: %s", t->name);
-                selected_type = t;
-                goto loop_out;
-            }
-        }
-    }
-loop_out:
-    if (selected_type == NULL) {
-        log_print(DEBUG, "didn't match any mime type, not receiving this offer");
-        return;
-    }
-
-    /* check for x-kde-passwordManagerHint */
+static bool is_secret(struct clipboard_offer* co) {
     bool has_password_manager_hint = false;
     VEC_FOREACH(&co->mime_types, i) {
-        const struct mime_type* t = &co->mime_types.data[i];
-
-        if (STREQ(t->name, "x-kde-passwordManagerHint")) {
-            log_print(DEBUG, "got x-kde-passwordManagerHint");
+        const struct mime_type* type = &co->mime_types.data[i];
+        if (STREQ(type->name, "x-kde-passwordManagerHint")) {
+            log_print(TRACE, "got x-kde-passwordManagerHint");
             has_password_manager_hint = true;
             break;
         }
@@ -159,7 +134,8 @@ loop_out:
 
         if (pipe(p.fds) == -1) {
             log_print(ERR, "failed to create pipe: %s", strerror(errno));
-            return;
+            /* can't really know what the value is, but better safe than sorry */
+            return true;
         }
 
         zwlr_data_control_offer_v1_receive(co->offer, "x-kde-passwordManagerHint", p.write);
@@ -175,9 +151,40 @@ loop_out:
         close(p.read);
 
         if (STREQ(buf, "secret")) {
-            log_print(DEBUG, "offer has x-kde-passwordManagerHint=secret, ignoring");
-            return;
+            return true;
         }
+    }
+
+    return false;
+}
+
+static void receive_offer(struct clipboard_offer* co) {
+    struct clipboard_offer_data* od = NULL;
+    struct pipe p = { .fds = { -1, -1 } };
+
+    const struct mime_type* selected_type = NULL;
+    VEC_FOREACH(&config.accepted_mime_types, i) {
+        const char* pattern = config.accepted_mime_types.data[i];
+
+        VEC_FOREACH(&co->mime_types, j) {
+            const struct mime_type* type = &co->mime_types.data[j];
+
+            if (fnmatch(pattern, type->name, 0) == 0) {
+                log_print(DEBUG, "picked mime type: %s", type->name);
+                selected_type = type;
+                goto loop_out;
+            }
+        }
+    }
+loop_out:
+    if (selected_type == NULL) {
+        log_print(DEBUG, "didn't match any mime type, not receiving this offer");
+        return;
+    }
+
+    if (is_secret(co)) {
+        log_print(DEBUG, "offer has x-kde-passwordManagerHint=secret, ignoring");
+        return;
     }
 
     /* create a pipe for data transfer between us and source client */
