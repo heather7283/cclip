@@ -16,6 +16,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <stdio.h>
+
 #include "wayland.h"
 #include "log.h"
 #include "db.h"
@@ -158,7 +160,7 @@ int main(int argc, char** argv) {
     int wayland_fd = -1;
     int exit_status = 0;
 
-    log_init(stderr, ERR);
+    log_init(2 /* stderr */, ERR);
 
     if (parse_command_line(argc, argv) < 0) {
         log_print(ERR, "error while parsing command line options");
@@ -166,7 +168,7 @@ int main(int argc, char** argv) {
         goto cleanup;
     };
 
-    log_init(stderr, config.loglevel);
+    log_init(2 /* stderr */, config.loglevel);
 
     if (VEC_SIZE(&config.accepted_mime_types) == 0) {
         VEC_APPEND(&config.accepted_mime_types, &(char *){ "*" });

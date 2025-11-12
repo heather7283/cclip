@@ -16,23 +16,39 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <sys/uio.h>
+#include <string.h>
 #include <stdarg.h>
+#include <stdio.h>
 
 #include "log.h"
 
 static struct {
-    FILE *stream;
+    int fd;
     enum loglevel level;
 } log_config = {
-    .stream = NULL,
+    .fd = -1,
     .level = LOGLEVEL_SILENT,
 };
 
-void log_init(FILE *stream, enum loglevel level) {
-    log_config.stream = stream;
-    log_config.level = level;
+static const struct {
+    char* prefix;
+    size_t len;
+} log_prefixes[] = {
+    #define PREFIX(level, prefix) [level] = { prefix, strlen(prefix) }
 
-    setvbuf(log_config.stream, NULL, _IOLBF, 0);
+    PREFIX(ERR, "error: "),
+    PREFIX(WARN, "warning: "),
+    PREFIX(INFO, "info: "),
+    PREFIX(DEBUG, "debug: "),
+    PREFIX(TRACE, "trace: "),
+
+    #undef PREFIX
+};
+
+void log_init(int fd, enum loglevel level) {
+    log_config.fd = fd;
+    log_config.level = level;
 }
 
 void log_print(enum loglevel level, const char* fmt, ...) {
@@ -40,31 +56,29 @@ void log_print(enum loglevel level, const char* fmt, ...) {
         return;
     }
 
-    switch (level) {
-    case LOGLEVEL_SILENT:
-        return;
-    case ERR:
-        fprintf(log_config.stream, "error: ");
-        break;
-    case WARN:
-        fprintf(log_config.stream, "warning: ");
-        break;
-    case INFO:
-        fprintf(log_config.stream, "info: ");
-        break;
-    case DEBUG:
-        fprintf(log_config.stream, "debug: ");
-        break;
-    default:
-        fprintf(log_config.stream, "trace: ");
-        break;
-    }
+    char buf[1024];
+    int buf_len;
 
     va_list args;
     va_start(args, fmt);
-    vfprintf(log_config.stream, fmt, args);
+    buf_len = vsnprintf(buf, sizeof(buf), fmt, args);
     va_end(args);
 
-    fprintf(log_config.stream, "\n");
+    struct iovec iov[3] = {
+        {
+            .iov_base = log_prefixes[level].prefix,
+            .iov_len = log_prefixes[level].len
+        },
+        {
+            .iov_base = buf,
+            .iov_len = buf_len
+        },
+        {
+            .iov_base = "\n",
+            .iov_len = 1
+        }
+    };
+
+    writev(log_config.fd, iov, 3);
 }
 

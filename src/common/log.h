@@ -18,18 +18,18 @@
 
 #pragma once
 
-#include <stdio.h>
-
 enum loglevel {
     LOGLEVEL_SILENT,
+
     ERR,
     WARN,
     INFO,
     DEBUG,
     TRACE,
-    LOGLEVEL_MAX
+
+    LOGLEVEL_MAX = TRACE
 };
 
-void log_init(FILE *stream, enum loglevel level);
+void log_init(int fd, enum loglevel level);
 void log_print(enum loglevel level, const char* fmt, ...);
 

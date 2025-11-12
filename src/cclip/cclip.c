@@ -122,7 +122,7 @@ int main(int argc, char** argv) {
         }
     }
 
-    log_init(stderr, loglevel);
+    log_init(2 /* stderr */, loglevel);
 
     argc = argc - optind;
     argv = &argv[optind];
