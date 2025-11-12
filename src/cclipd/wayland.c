@@ -155,7 +155,7 @@ loop_out:
     zwlr_data_control_offer_v1_receive(co->offer, selected_type->name, p.write);
 
     /* make sure the sender received our request and is ready for transfer */
-    wl_display_roundtrip(wayland.display);
+    wl_display_flush(wayland.display);
 
     /* close writing end on our side, we don't need it */
     close(p.write);
