@@ -16,12 +16,6 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <sys/signalfd.h>
-#include <sys/epoll.h>
-#include <unistd.h>
-#include <signal.h>
-#include <stdlib.h>
-
 #include "wayland.h"
 #include "log.h"
 #include "db.h"
@@ -30,8 +24,6 @@
 #include "eventloop.h"
 #include "xmalloc.h"
 #include "getopt.h"
-
-#define EPOLL_MAX_EVENTS 16
 
 static void print_version_and_exit(void) {
     fprintf(stderr, "cclipd version %s, branch %s, commit %s\n",

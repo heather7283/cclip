@@ -107,7 +107,7 @@ static struct {
     )},
 };
 
-bool prepare_statements(struct sqlite3* db) {
+static bool prepare_statements(struct sqlite3* db) {
     for (size_t i = 0; i < SIZEOF_ARRAY(statements); i++) {
         if (!db_prepare_stmt(db, statements[i].src, &statements[i].stmt)) {
             return false;
@@ -117,7 +117,7 @@ bool prepare_statements(struct sqlite3* db) {
     return true;
 }
 
-void cleanup_statements(void) {
+static void cleanup_statements(void) {
     for (size_t i = 0; i < SIZEOF_ARRAY(statements); i++) {
         sqlite3_finalize(statements[i].stmt);
         statements[i].stmt = NULL;
@@ -212,10 +212,10 @@ static bool do_delete_oldest(struct sqlite3* db, int keep_count) {
     return ret;
 }
 
-bool insert_db_entry(struct sqlite3* db, const void* data, size_t data_size, const char* mime) {
-    const uint64_t data_hash = XXH3_64bits(data, data_size);
+static bool process_queue_entry(struct sqlite3* db, struct queue_entry* e) {
+    const uint64_t hash = XXH3_64bits(e->data, e->size);
     const time_t timestamp = time(NULL);
-    char* const preview = generate_preview(data, data_size, mime);
+    char* const preview = generate_preview(e->data, e->size, e->mime);
 
     if (!begin_transaction(db)) {
         free(preview);
@@ -223,10 +223,10 @@ bool insert_db_entry(struct sqlite3* db, const void* data, size_t data_size, con
     }
 
     const struct db_entry entry = {
-        .data = data,
-        .data_size = data_size,
-        .data_hash = data_hash,
-        .mime_type = mime,
+        .data = e->data,
+        .data_size = e->size,
+        .mime_type = e->mime,
+        .data_hash = hash,
         .preview = preview,
         .timestamp = timestamp,
     };
@@ -315,7 +315,7 @@ static void* thread_entrypoint(void* data) {
             /* release the mutex so that other thread can keep feeding data */
             pthread_mutex_unlock(&thread_state.mutex);
 
-            insert_db_entry(db, entry.data, entry.size, entry.mime);
+            process_queue_entry(db, &entry);
             queue_entry_free_contents(&entry);
 
             /* check for more entries in the buffer */

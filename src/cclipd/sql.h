@@ -23,8 +23,6 @@
 
 #include <sqlite3.h>
 
-struct db_entry;
-
 bool start_db_thread(struct sqlite3* db);
 void stop_db_thread(void);
 

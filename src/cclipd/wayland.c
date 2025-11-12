@@ -56,10 +56,7 @@ struct clipboard_offer {
 
 struct clipboard_offer_data {
     VEC(uint8_t) data;
-    size_t data_size;
-
     struct mime_type type;
-
     struct pollen_event_source* fd_source;
 };
 
