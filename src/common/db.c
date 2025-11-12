@@ -41,6 +41,7 @@
  *     mime_type TEXT    NOT NULL,
  *     timestamp INTEGER NOT NULL
  * );
+ *
  * CREATE INDEX idx_history_timestamp ON history (timestamp);
  *
  * Schema version 2: cclip 3.0.0-next (tag column added)
@@ -54,6 +55,7 @@
  *     timestamp INTEGER NOT NULL,
  *     tag       TEXT    UNIQUE
  * );
+ *
  * CREATE INDEX idx_history_timestamp ON history (timestamp);
  *
  * Schema version 3: cclip 3.1.0
@@ -67,6 +69,7 @@
  *     mime_type TEXT    NOT NULL,
  *     timestamp INTEGER NOT NULL
  * );
+ *
  * CREATE INDEX idx_history_timestamp ON history (timestamp);
  *
  * CREATE TABLE tags (
@@ -82,6 +85,42 @@
  *     FOREIGN KEY ( entry_id ) REFERENCES history ( id ) ON DELETE CASCADE,
  *     FOREIGN KEY ( tag_id ) REFERENCES tags ( id ) ON DELETE RESTRICT
  * ) WITHOUT ROWID;
+ *
+ * CREATE TRIGGER cleanup_orphaned_tags AFTER DELETE ON history_tags FOR EACH ROW BEGIN
+ *     DELETE FROM tags
+ *     WHERE id = OLD.tag_id
+ *     AND NOT EXISTS ( SELECT 1 FROM history_tags WHERE tag_id = OLD.tag_id );
+ * END;
+ *
+ * Schema version 4: cclip 3.2.0
+ *
+ * CREATE TABLE history (
+ *     id        INTEGER PRIMARY KEY,
+ *     data      BLOB    NOT NULL,
+ *     data_hash INTEGER NOT NULL UNIQUE,
+ *     data_size INTEGER NOT NULL,
+ *     preview   TEXT    NOT NULL,
+ *     mime_type TEXT    NOT NULL,
+ *     timestamp INTEGER NOT NULL
+ * );
+ *
+ * CREATE INDEX idx_history_timestamp ON history ( timestamp );
+ *
+ * CREATE TABLE tags (
+ *     id   INTEGER PRIMARY KEY,
+ *     name TEXT    NOT NULL UNIQUE
+ * );
+ *
+ * CREATE TABLE history_tags (
+ *     tag_id   INTEGER,
+ *     entry_id INTEGER,
+ *
+ *     PRIMARY KEY ( tag_id, entry_id ),
+ *     FOREIGN KEY ( entry_id ) REFERENCES history ( id ) ON DELETE CASCADE,
+ *     FOREIGN KEY ( tag_id ) REFERENCES tags ( id ) ON DELETE RESTRICT
+ * ) WITHOUT ROWID;
+ *
+ * CREATE INDEX idx_history_tags_entry_id ON history_tags ( entry_id );
  *
  * CREATE TRIGGER cleanup_orphaned_tags AFTER DELETE ON history_tags FOR EACH ROW BEGIN
  *     DELETE FROM tags
@@ -182,7 +221,7 @@ bool db_init(struct sqlite3* db) {
             timestamp INTEGER NOT NULL
         );
 
-        CREATE INDEX idx_history_timestamp ON history (timestamp);
+        CREATE INDEX idx_history_timestamp ON history ( timestamp );
 
         CREATE TABLE tags (
             id   INTEGER PRIMARY KEY,
@@ -198,13 +237,15 @@ bool db_init(struct sqlite3* db) {
             FOREIGN KEY ( tag_id ) REFERENCES tags ( id ) ON DELETE RESTRICT
         ) WITHOUT ROWID;
 
+        CREATE INDEX idx_history_tags_entry_id ON history_tags ( entry_id );
+
         CREATE TRIGGER cleanup_orphaned_tags AFTER DELETE ON history_tags FOR EACH ROW BEGIN
             DELETE FROM tags
             WHERE id = OLD.tag_id
             AND NOT EXISTS ( SELECT 1 FROM history_tags WHERE tag_id = OLD.tag_id );
         END;
 
-        PRAGMA user_version = 3;
+        PRAGMA user_version = 4;
     );
 
     int rc = sqlite3_exec(db, sql, NULL, NULL, NULL);
@@ -289,6 +330,22 @@ bool db_set_secure_delete(struct sqlite3* db, bool enable) {
 
     sqlite3_finalize(stmt);
     return ret;
+}
+
+static bool migrate_from_3_to_4(struct sqlite3* db) {
+    static const char sql[] = TOSTRING(
+        CREATE INDEX idx_history_tags_entry_id ON history_tags ( entry_id );
+
+        PRAGMA user_version = 4;
+    );
+
+    int rc = sqlite3_exec(db, sql, NULL, NULL, NULL);
+    if (rc != SQLITE_OK) {
+        log_print(ERR, "migration: %s", sqlite3_errmsg(db));
+        return false;
+    }
+
+    return true;
 }
 
 static bool migrate_from_2_to_3(struct sqlite3* db) {
@@ -395,6 +452,7 @@ typedef bool (*migration_function_t)(struct sqlite3* db);
 static const migration_function_t migration_functions[] = {
     [1] = migrate_from_1_to_2,
     [2] = migrate_from_2_to_3,
+    [3] = migrate_from_3_to_4,
 };
 
 bool db_migrate(struct sqlite3 *db, int32_t from, int32_t to) {

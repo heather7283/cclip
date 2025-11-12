@@ -23,7 +23,7 @@
 
 #include <sqlite3.h>
 
-#define DB_USER_SCHEMA_VERSION 3
+#define DB_USER_SCHEMA_VERSION 4
 
 /* opens the database at path (or default path is NULL) */
 struct sqlite3* db_open(const char *path, bool create_if_not_exists);
