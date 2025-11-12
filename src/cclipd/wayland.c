@@ -129,7 +129,7 @@ static void receive_offer(struct clipboard_offer* co) {
         struct mime_type* t = &co->mime_types.data[i];
 
         VEC_FOREACH(&config.accepted_mime_types, j) {
-            const char* pattern = config.accepted_mime_types.data[i];
+            const char* pattern = config.accepted_mime_types.data[j];
             if (fnmatch(pattern, t->name, 0) == 0) {
                 log_print(DEBUG, "picked mime type: %s", t->name);
                 selected_type = t;
