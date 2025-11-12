@@ -190,7 +190,7 @@ static void common_selection_handler(struct clipboard_offer* co, bool primary) {
         log_print(DEBUG, "ignoring primary selection event for offer %p", (void*)co);
     }
 
-    log_print(TRACE, "destroying offer %p", (void*)co);
+    log_print(TRACE, "destroying offer %p", (void*)co->offer);
     zwlr_data_control_offer_v1_destroy(co->offer);
     co->offer = NULL;
 }
