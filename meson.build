@@ -90,7 +90,7 @@ executable('cclip', cclip_sources + common_sources,
     install: true
 )
 
-executable('cclipd', cclipd_sources + common_sources + proto_sources,
+executable('cclipd', cclipd_sources + common_sources + protocol_sources,
     include_directories: include_dirs,
     link_with: [ xxhash_lib, getopt_lib ],
     dependencies: [ sqlite3_dep, wayland_client_dep ],
