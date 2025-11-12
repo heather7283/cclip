@@ -224,6 +224,7 @@ int wayland_init(void) {
 
     wl_registry_add_listener(wayland.registry, &registry_listener, NULL);
 
+    /* Roundtrip to enumerate all globals so we can proceed with initialisation */
     wl_display_roundtrip(wayland.display);
 
     if (wayland.seat == NULL) {
@@ -247,7 +248,13 @@ int wayland_init(void) {
                                              &data_control_device_listener,
                                              NULL);
 
-    wl_display_roundtrip(wayland.display);
+    /*
+     * Don't roundtrip here so we don't start processing clipboard events
+     * before entering actual main event loop, just flush instead.
+     * From wayland docs: "Clients should always call this function before
+     * blocking on input from the display fd."
+     */
+    wl_display_flush(wayland.display);
 
     return wayland.fd;
 }
