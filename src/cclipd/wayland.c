@@ -284,6 +284,15 @@ static const struct wl_registry_listener registry_listener = {
     .global_remove = registry_global_remove,
 };
 
+static int on_wayland_events(struct pollen_event_source* src, int fd, uint32_t ev, void* data) {
+    if (wl_display_dispatch(wayland.display) < 0) {
+        log_print(ERR, "failed to process wayland events: %s", errno);
+        return -1;
+    }
+
+    return 0;
+}
+
 int wayland_init(void) {
     wayland.display = wl_display_connect(NULL);
     if (wayland.display == NULL) {
@@ -292,6 +301,7 @@ int wayland_init(void) {
     }
 
     wayland.fd = wl_display_get_fd(wayland.display);
+    pollen_loop_add_fd(eventloop, wayland.fd, EPOLLIN, false, on_wayland_events, NULL);
 
     wayland.registry = wl_display_get_registry(wayland.display);
     if (wayland.registry == NULL) {
@@ -352,9 +362,5 @@ void wayland_cleanup(void) {
     if (wayland.display) {
         wl_display_disconnect(wayland.display);
     }
-}
-
-int wayland_process_events(void) {
-    return wl_display_dispatch(wayland.display);
 }
 

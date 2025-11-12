@@ -146,15 +146,6 @@ static int on_sigusr1(struct pollen_event_source* src, int sig, void* data) {
     return 0;
 }
 
-static int on_wayland_events(struct pollen_event_source* src, int fd, uint32_t ev, void* data) {
-    if (wayland_process_events() < 0) {
-        log_print(ERR, "failed to process wayland events");
-        return -1;
-    }
-
-    return 0;
-}
-
 int main(int argc, char** argv) {
     struct sqlite3* db = NULL;
     int wayland_fd = -1;
@@ -231,8 +222,6 @@ int main(int argc, char** argv) {
         exit_status = 1;
         goto cleanup;
     };
-
-    pollen_loop_add_fd(eventloop, wayland_fd, EPOLLIN, false, on_wayland_events, NULL);
 
     exit_status = pollen_loop_run(eventloop);
 
