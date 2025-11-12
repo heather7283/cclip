@@ -14,6 +14,7 @@ cclip was heavily inspired by [cliphist](https://github.com/sentriz/cliphist) an
 - Preserves clipboard content byte-to-byte (doesn't insert extra newlines, strip whitespace, etc)
 - Supports text, images, and any other MIME type, really
 - Lets you add custom tags to clipboard entries
+- Ignores sensitive data like passwords
 
 ## Building
 > [!NOTE]
