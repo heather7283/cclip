@@ -35,6 +35,7 @@
 #include "eventloop.h"
 
 #include "wlr-data-control-unstable-v1.h"
+#include "ext-data-control-v1.h"
 
 struct pipe {
     union {
@@ -66,8 +67,12 @@ static struct {
     struct wl_display* display;
     struct wl_seat* seat;
     struct wl_registry* registry;
-    struct zwlr_data_control_manager_v1* data_control_manager;
-    struct zwlr_data_control_device_v1* data_control_device;
+
+    struct zwlr_data_control_manager_v1* wlr_data_ctrl_manager;
+    struct zwlr_data_control_device_v1* wlr_data_ctrl_device;
+
+    struct ext_data_control_manager_v1* ext_data_ctrl_manager;
+    struct ext_data_control_device_v1* ext_data_ctrl_device;
 
     struct clipboard_offer offer;
 } wayland = {
@@ -308,11 +313,14 @@ static const struct zwlr_data_control_device_v1_listener data_control_device_lis
 
 static void registry_global(void* data, struct wl_registry* registry, uint32_t name,
                             const char* interface, uint32_t version) {
-    if (wayland.seat == NULL && strcmp(interface, "wl_seat") == 0) {
+    if (wayland.seat == NULL && STREQ(interface, wl_seat_interface.name)) {
         wayland.seat = wl_registry_bind(registry, name, &wl_seat_interface, 2);
-    } else if (strcmp(interface, "zwlr_data_control_manager_v1") == 0) {
-        wayland.data_control_manager =
+    } else if (STREQ(interface, zwlr_data_control_manager_v1_interface.name)) {
+        wayland.wlr_data_ctrl_manager =
             wl_registry_bind(registry, name, &zwlr_data_control_manager_v1_interface, 2);
+    } else if (STREQ(interface, ext_data_control_manager_v1_interface.name)) {
+        wayland.ext_data_ctrl_manager =
+            wl_registry_bind(registry, name, &ext_data_control_manager_v1_interface, 1);
     }
 }
 
@@ -360,19 +368,19 @@ int wayland_init(void) {
         return -1;
     }
 
-    if (wayland.data_control_manager == NULL) {
-        log_print(ERR, "failed to bind to data_control_manager interface");
+    if (wayland.wlr_data_ctrl_manager == NULL) {
+        log_print(ERR, "failed to bind to wlr_data_control_manager interface");
         return -1;
     }
 
-    wayland.data_control_device =
-        zwlr_data_control_manager_v1_get_data_device(wayland.data_control_manager, wayland.seat);
-    if (wayland.data_control_device == NULL) {
+    wayland.wlr_data_ctrl_device =
+        zwlr_data_control_manager_v1_get_data_device(wayland.wlr_data_ctrl_manager, wayland.seat);
+    if (wayland.wlr_data_ctrl_device == NULL) {
         log_print(ERR, "data device is null");
         return -1;
     }
 
-    zwlr_data_control_device_v1_add_listener(wayland.data_control_device,
+    zwlr_data_control_device_v1_add_listener(wayland.wlr_data_ctrl_device,
                                              &data_control_device_listener,
                                              NULL);
 
@@ -388,12 +396,20 @@ int wayland_init(void) {
 }
 
 void wayland_cleanup(void) {
-    if (wayland.data_control_device) {
-        zwlr_data_control_device_v1_destroy(wayland.data_control_device);
+    if (wayland.wlr_data_ctrl_device) {
+        zwlr_data_control_device_v1_destroy(wayland.wlr_data_ctrl_device);
     }
-    if (wayland.data_control_manager) {
-        zwlr_data_control_manager_v1_destroy(wayland.data_control_manager);
+    if (wayland.wlr_data_ctrl_manager) {
+        zwlr_data_control_manager_v1_destroy(wayland.wlr_data_ctrl_manager);
     }
+
+    if (wayland.ext_data_ctrl_device) {
+        ext_data_control_device_v1_destroy(wayland.ext_data_ctrl_device);
+    }
+    if (wayland.ext_data_ctrl_manager) {
+        ext_data_control_manager_v1_destroy(wayland.ext_data_ctrl_manager);
+    }
+
     if (wayland.seat) {
         wl_seat_destroy(wayland.seat);
     }
