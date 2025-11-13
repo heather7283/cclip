@@ -70,11 +70,9 @@ static struct {
     struct zwlr_data_control_device_v1* data_control_device;
 
     struct clipboard_offer offer;
-} wayland = {0};
-
-static void mime_type_copy(struct mime_type* dst, const struct mime_type* src) {
-    memcpy(dst->name, src->name, sizeof(dst->name));
-}
+} wayland = {
+    .fd = -1
+};
 
 static int on_pipe_ready(struct pollen_event_source* source, int fd, uint32_t ev, void* data) {
     struct clipboard_offer_data* od = data;
@@ -206,7 +204,7 @@ loop_out:
     close(p.write);
 
     od = xcalloc(1, sizeof(*od));
-    mime_type_copy(&od->type, selected_type);
+    od->type = *selected_type;
 
     od->fd_source = pollen_loop_add_fd(eventloop, p.read, EPOLLIN, true, on_pipe_ready, od);
     if (od->fd_source == NULL) {
