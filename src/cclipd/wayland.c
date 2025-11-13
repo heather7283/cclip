@@ -27,15 +27,13 @@
 #include <wayland-client.h>
 
 #include "wayland.h"
+#include "proto_impl.h"
 #include "sql.h"
 #include "log.h"
 #include "config.h"
 #include "macros.h"
 #include "xmalloc.h"
 #include "eventloop.h"
-
-#include "wlr-data-control-unstable-v1.h"
-#include "ext-data-control-v1.h"
 
 struct pipe {
     union {
@@ -51,11 +49,6 @@ struct mime_type {
     char name[256]; /* https://stackoverflow.com/a/643772 */
 };
 
-struct clipboard_offer {
-    struct zwlr_data_control_offer_v1* offer;
-    VEC(struct mime_type) mime_types;
-};
-
 struct clipboard_offer_data {
     VEC(uint8_t) data;
     struct mime_type type;
@@ -69,12 +62,12 @@ static struct {
     struct wl_registry* registry;
 
     struct zwlr_data_control_manager_v1* wlr_data_ctrl_manager;
-    struct zwlr_data_control_device_v1* wlr_data_ctrl_device;
-
     struct ext_data_control_manager_v1* ext_data_ctrl_manager;
-    struct ext_data_control_device_v1* ext_data_ctrl_device;
 
-    struct clipboard_offer offer;
+    const struct protocol_implementation* impl;
+    struct data_ctrl_device* device;
+    struct data_ctrl_offer* offer;
+    VEC(struct mime_type) offer_types;
 } wayland = {
     .fd = -1
 };
@@ -129,10 +122,10 @@ free:
     return 0;
 }
 
-static bool is_secret(struct clipboard_offer* co) {
+static bool check_secret(void) {
     bool has_password_manager_hint = false;
-    VEC_FOREACH(&co->mime_types, i) {
-        const struct mime_type* type = &co->mime_types.data[i];
+    VEC_FOREACH(&wayland.offer_types, i) {
+        const struct mime_type* type = &wayland.offer_types.data[i];
         if (STREQ(type->name, "x-kde-passwordManagerHint")) {
             log_print(TRACE, "got x-kde-passwordManagerHint");
             has_password_manager_hint = true;
@@ -148,7 +141,7 @@ static bool is_secret(struct clipboard_offer* co) {
             return true;
         }
 
-        zwlr_data_control_offer_v1_receive(co->offer, "x-kde-passwordManagerHint", p.write);
+        wayland.impl->data_ctrl_offer_receive(wayland.offer, "x-kde-passwordManagerHint", p.write);
         wl_display_flush(wayland.display);
         close(p.write);
 
@@ -168,7 +161,7 @@ static bool is_secret(struct clipboard_offer* co) {
     return false;
 }
 
-static void receive_offer(struct clipboard_offer* co) {
+static void receive_offer(void) {
     struct clipboard_offer_data* od = NULL;
     struct pipe p = { .fds = { -1, -1 } };
 
@@ -176,8 +169,8 @@ static void receive_offer(struct clipboard_offer* co) {
     VEC_FOREACH(&config.accepted_mime_types, i) {
         const char* pattern = config.accepted_mime_types.data[i];
 
-        VEC_FOREACH(&co->mime_types, j) {
-            const struct mime_type* type = &co->mime_types.data[j];
+        VEC_FOREACH(&wayland.offer_types, j) {
+            const struct mime_type* type = &wayland.offer_types.data[j];
 
             if (fnmatch(pattern, type->name, 0) == 0) {
                 log_print(DEBUG, "picked mime type: %s", type->name);
@@ -192,7 +185,7 @@ loop_out:
         return;
     }
 
-    if (config.ignore_secrets && is_secret(co)) {
+    if (config.ignore_secrets && check_secret()) {
         log_print(DEBUG, "offer is marked as secret, ignoring");
         return;
     }
@@ -206,8 +199,8 @@ loop_out:
     /* make it big - don't really care if fails, transfer will just be slower */
     fcntl(p.read, F_SETPIPE_SZ, 1 * 1024 * 1024 /* 1 MiB */);
 
-    log_print(TRACE, "receiving offer %p...", (void*)co->offer);
-    zwlr_data_control_offer_v1_receive(co->offer, selected_type->name, p.write);
+    log_print(TRACE, "receiving offer %p...", (void*)wayland.offer);
+    wayland.impl->data_ctrl_offer_receive(wayland.offer, selected_type->name, p.write);
 
     /* make sure the sender received our request and is ready for transfer */
     wl_display_flush(wayland.display);
@@ -238,74 +231,67 @@ err:
     }
 }
 
-static void common_selection_handler(struct clipboard_offer* co, bool primary) {
+static void common_selection_handler(struct data_ctrl_offer* offer, bool primary) {
     if (!primary || config.primary_selection) {
-        receive_offer(co);
+        receive_offer();
     } else {
-        log_print(DEBUG, "ignoring primary selection event for offer %p", (void*)co);
+        log_print(DEBUG, "ignoring primary selection event for offer %p", (void*)offer);
     }
 
-    log_print(TRACE, "destroying offer %p", (void*)co->offer);
-    zwlr_data_control_offer_v1_destroy(co->offer);
-    co->offer = NULL;
+    log_print(TRACE, "destroying offer %p", (void*)offer);
+    wayland.impl->data_ctrl_offer_destroy(offer);
+    wayland.offer = NULL;
 }
 
-static void selection_handler(void* data, struct zwlr_data_control_device_v1* device,
-                              struct zwlr_data_control_offer_v1* offer) {
+static void selection_handler(void* data, struct data_ctrl_device* device,
+                              struct data_ctrl_offer* offer) {
     log_print(DEBUG, "got selection event for offer %p", (void*)offer);
     if (offer == NULL) {
         return;
     }
 
-    struct clipboard_offer* co = &wayland.offer;
-    common_selection_handler(co, false);
+    common_selection_handler(offer, false);
 }
 
-static void primary_selection_handler(void* data, struct zwlr_data_control_device_v1* device,
-                                      struct zwlr_data_control_offer_v1* offer) {
+static void primary_selection_handler(void* data, struct data_ctrl_device* device,
+                                      struct data_ctrl_offer* offer) {
     log_print(DEBUG, "got primary selection event for offer %p", (void*)offer);
     if (offer == NULL) {
         return;
     }
 
-    struct clipboard_offer* co = &wayland.offer;
-    common_selection_handler(co, true);
+    common_selection_handler(offer, true);
 }
 
-static void mime_type_offer_handler(void* data, struct zwlr_data_control_offer_v1* offer,
+static void mime_type_offer_handler(void* data, struct data_ctrl_offer* offer,
                                     const char* mime_type) {
     log_print(TRACE, "got mime type offer %s for offer %p", mime_type, (void*)offer);
 
-    struct clipboard_offer* co = data;
     size_t mime_type_len = strlen(mime_type);
     if (mime_type_len > 255) {
         log_print(ERR, "mime type is too long (%zu): %s", mime_type_len, mime_type);
         return;
     }
 
-    struct mime_type* t = VEC_EMPLACE_BACK(&co->mime_types);
+    struct mime_type* t = VEC_EMPLACE_BACK(&wayland.offer_types);
     memcpy(&t->name, mime_type, mime_type_len);
     t->name[mime_type_len] = '\0';
 }
 
-static const struct zwlr_data_control_offer_v1_listener data_control_offer_listener = {
+static const struct data_ctrl_offer_listener data_ctrl_offer_listener = {
     .offer = mime_type_offer_handler,
 };
 
-static void data_offer_handler(void* data, struct zwlr_data_control_device_v1* device,
-                               struct zwlr_data_control_offer_v1* offer) {
-    log_print(DEBUG, "got new wlr_data_control_offer %p", (void*)offer);
+static void data_offer_handler(void* data, struct data_ctrl_device* device,
+                               struct data_ctrl_offer* offer) {
+    log_print(DEBUG, "got new data_control_offer %p", (void*)offer);
 
-    struct clipboard_offer* co = &wayland.offer;
-    co->offer = offer;
-
-    if (offer != NULL) {
-        VEC_CLEAR(&co->mime_types);
-        zwlr_data_control_offer_v1_add_listener(co->offer, &data_control_offer_listener, co);
-    }
+    wayland.offer = offer;
+    VEC_CLEAR(&wayland.offer_types);
+    wayland.impl->data_ctrl_offer_add_listener(offer, &data_ctrl_offer_listener, NULL);
 }
 
-static const struct zwlr_data_control_device_v1_listener data_control_device_listener = {
+static const struct data_ctrl_device_listener data_ctrl_device_listener = {
     .data_offer = data_offer_handler,
     .selection = selection_handler,
     .primary_selection = primary_selection_handler,
@@ -368,21 +354,29 @@ int wayland_init(void) {
         return -1;
     }
 
-    if (wayland.wlr_data_ctrl_manager == NULL) {
-        log_print(ERR, "failed to bind to wlr_data_control_manager interface");
+    struct data_ctrl_manager* manager;
+    if (wayland.wlr_data_ctrl_manager == NULL && wayland.ext_data_ctrl_manager == NULL) {
+        log_print(ERR, "failed to bind either wlr_data_control_manager "
+                       "or ext_data_control_manager interface, no compositor support?");
         return -1;
+    } else if (wayland.ext_data_ctrl_manager != NULL) {
+        log_print(INFO, "using ext_data_control_manager");
+
+        wayland.impl = get_protocol_implementation_ext();
+        manager = (struct data_ctrl_manager*)wayland.ext_data_ctrl_manager;
+    } else /* if (wayland.wlr_data_ctrl_manager != NULL) */ {
+        log_print(INFO, "ext_data_control_manager is unavailable, using wlr_data_control_manager");
+
+        wayland.impl = get_protocol_implementation_ext();
+        manager = (struct data_ctrl_manager*)wayland.wlr_data_ctrl_manager;
     }
 
-    wayland.wlr_data_ctrl_device =
-        zwlr_data_control_manager_v1_get_data_device(wayland.wlr_data_ctrl_manager, wayland.seat);
-    if (wayland.wlr_data_ctrl_device == NULL) {
-        log_print(ERR, "data device is null");
+    wayland.device = wayland.impl->get_data_ctrl_device(manager, wayland.seat);
+    if (wayland.device == NULL) {
+        log_print(ERR, "failed to get a data_control_device");
         return -1;
     }
-
-    zwlr_data_control_device_v1_add_listener(wayland.wlr_data_ctrl_device,
-                                             &data_control_device_listener,
-                                             NULL);
+    wayland.impl->data_ctrl_device_add_listener(wayland.device, &data_ctrl_device_listener, NULL);
 
     /*
      * Don't roundtrip here so we don't start processing clipboard events
@@ -396,15 +390,15 @@ int wayland_init(void) {
 }
 
 void wayland_cleanup(void) {
-    if (wayland.wlr_data_ctrl_device) {
-        zwlr_data_control_device_v1_destroy(wayland.wlr_data_ctrl_device);
+    if (wayland.offer) {
+        wayland.impl->data_ctrl_offer_destroy(wayland.offer);
     }
-    if (wayland.wlr_data_ctrl_manager) {
-        zwlr_data_control_manager_v1_destroy(wayland.wlr_data_ctrl_manager);
+    if (wayland.device) {
+        wayland.impl->data_ctrl_device_destroy(wayland.device);
     }
 
-    if (wayland.ext_data_ctrl_device) {
-        ext_data_control_device_v1_destroy(wayland.ext_data_ctrl_device);
+    if (wayland.wlr_data_ctrl_manager) {
+        zwlr_data_control_manager_v1_destroy(wayland.wlr_data_ctrl_manager);
     }
     if (wayland.ext_data_ctrl_manager) {
         ext_data_control_manager_v1_destroy(wayland.ext_data_ctrl_manager);

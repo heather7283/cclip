@@ -78,6 +78,7 @@ cclipd_sources = files([
     'src/cclipd/cclipd.c',
     'src/cclipd/sql.c',
     'src/cclipd/wayland.c',
+    'src/cclipd/proto_impl.c',
     'src/cclipd/preview.c',
     'src/cclipd/config.c',
     'src/cclipd/eventloop.c',
