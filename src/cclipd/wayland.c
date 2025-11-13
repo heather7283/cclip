@@ -100,8 +100,15 @@ static int on_pipe_ready(struct pollen_event_source* source, int fd, uint32_t ev
 
     if (ev & EPOLLHUP) {
         /* writing client closed its end of the pipe - finalize transfer */
-        queue_for_insertion(od->data.data, od->data.size, xstrdup(od->type.name));
-        free_vec = false;
+        if (od->data.size == 0) {
+            log_print(WARN, "nothing was received!");
+        } else if (od->data.size < config.min_data_size) {
+            log_print(DEBUG, "received %d bytes which is less than %d, not saving",
+                      od->data.size, config.min_data_size);
+        } else {
+            queue_for_insertion(od->data.data, od->data.size, xstrdup(od->type.name));
+            free_vec = false;
+        }
         goto free;
     }
 
