@@ -34,9 +34,11 @@ Binaries will be available under build directory. If you wish to have cclipd and
 sudo meson install -C build
 ```
 
-### AUR
+### Packages
 
-If you use Arch Linux, you can install `cclip` from the AUR instead of building manually.
+#### AUR
+
+If you use Arch Linux, you can install cclip from the [AUR](https://aur.archlinux.org/packages/cclip) instead of building manually.
 
 ## Usage
 > [!IMPORTANT]
