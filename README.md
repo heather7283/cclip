@@ -16,7 +16,9 @@ cclip was heavily inspired by [cliphist](https://github.com/sentriz/cliphist) an
 - Lets you add custom tags to clipboard entries
 - Ignores sensitive data like passwords
 
-## Building
+## Installation
+
+### Building from source
 > [!NOTE]
 > Make sure you have **libwayland-client**, **libsqlite3** and **wayland-scanner** installed before proceeding.
 
@@ -31,6 +33,12 @@ Binaries will be available under build directory. If you wish to have cclipd and
 ```
 sudo meson install -C build
 ```
+
+### Packages
+
+#### AUR
+
+If you use Arch Linux, you can install cclip from the [AUR](https://aur.archlinux.org/packages/cclip) instead of building manually.
 
 ## Usage
 > [!IMPORTANT]
