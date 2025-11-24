@@ -40,6 +40,10 @@ sudo meson install -C build
 
 If you use Arch Linux, you can install cclip from the [AUR](https://aur.archlinux.org/packages/cclip) instead of building manually.
 
+#### Gentoo
+
+Gentoo package in available in [heather7283-overlay](https://github.com/heather7283/heather7283-overlay) as `app-misc/cclip`.
+
 ## Usage
 > [!IMPORTANT]
 > cclipd uses wlr_data_control_unstable_v1 wayland protocol for clipboard interaction. Your compositor must support it in order for you to use cclip.
