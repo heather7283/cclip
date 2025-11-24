@@ -19,7 +19,7 @@ add_project_arguments('-DCCLIP_GIT_COMMIT_HASH="@0@"'.format(git_hash), language
 
 git_tag = run_command('git', 'describe', '--tags', check: false).stdout().strip()
 if git_tag == ''
-    git_tag = 'unknown'
+    git_tag = meson.project_version()
 endif
 add_project_arguments('-DCCLIP_GIT_TAG="@0@"'.format(git_tag), language: 'c')
 
