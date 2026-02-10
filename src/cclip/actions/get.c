@@ -26,6 +26,7 @@
 #include "collections/string.h"
 #include "db.h"
 #include "getopt.h"
+#include "xmalloc.h"
 #include "log.h"
 
 static void print_help(void) {
@@ -175,7 +176,7 @@ void action_get(int argc, char** argv, struct sqlite3* db) {
         ret = sqlite3_step(stmt);
         if (ret == SQLITE_ROW) {
             const int ncols = sqlite3_column_count(stmt);
-            struct iovec* iov = malloc(sizeof(*iov) * (ncols * 2));
+            struct iovec* iov = xmalloc(sizeof(*iov) * (ncols * 2));
             for (int i = 0; i < ncols; i++) {
                 iov[i * 2] = (struct iovec){
                     .iov_base = (void*)sqlite3_column_blob(stmt, i),

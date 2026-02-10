@@ -31,6 +31,7 @@
 #include "db.h"
 #include "macros.h"
 #include "getopt.h"
+#include "xmalloc.h"
 #include "log.h"
 
 static void print_help(void) {
@@ -173,7 +174,7 @@ void action_list(int argc, char** argv, struct sqlite3* db) {
 
     /* field + tab + field + tab + field + newline */
     const int ncols = sqlite3_column_count(stmt);
-    struct iovec* iov = malloc(sizeof(*iov) * (ncols * 2));
+    struct iovec* iov = xmalloc(sizeof(*iov) * (ncols * 2));
     while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
         for (int i = 0; i < ncols; i++) {
             iov[i * 2] = (struct iovec){
