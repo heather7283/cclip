@@ -1,6 +1,6 @@
 /*
  * This file is part of cclip, clipboard manager for wayland
- * Copyright (C) 2024  heather7283
+ * Copyright (C) 2026  heather7283
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
