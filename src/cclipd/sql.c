@@ -28,10 +28,9 @@
 #include "sql.h"
 #include "config.h"
 #include "preview.h"
+#include "xmalloc.h"
 #include "log.h"
 #include "macros.h"
-
-#define RING_BUFFER_SIZE (16 + 1)
 
 struct queue_entry {
     void* data;
@@ -41,9 +40,9 @@ struct queue_entry {
 
 static struct thread_state {
     struct queue {
-        struct queue_entry ring[RING_BUFFER_SIZE];
-        unsigned read, write, size;
-    } buf;
+        struct queue_entry* ring;
+        unsigned size, read, write;
+    } queue;
 
     bool should_exit;
 
@@ -51,10 +50,6 @@ static struct thread_state {
     pthread_mutex_t mutex;
     pthread_cond_t cond;
 } thread_state = {
-    .buf = {
-        .size = RING_BUFFER_SIZE,
-    },
-
     .mutex = PTHREAD_MUTEX_INITIALIZER,
     .cond = PTHREAD_COND_INITIALIZER,
 };
@@ -262,26 +257,36 @@ static void queue_entry_free_contents(struct queue_entry* e) {
 }
 
 static void queue_push(struct queue_entry entry) {
-    struct queue* q = &thread_state.buf;
+    struct queue* q = &thread_state.queue;
 
     if ((q->write + 1) % q->size == q->read) {
-        /* buffer is full, discard oldest entry */
-        log_print(WARN, "ring buffer is full, discarding oldest entry!");
+        /* buffer is full, resize */
+        log_print(WARN, "ring buffer is full!");
 
-        struct queue_entry* old = &q->ring[q->write];
-        queue_entry_free_contents(old);
+        unsigned new_size = q->size + 16;
+        struct queue_entry *new_ring = xcalloc(new_size, sizeof(new_ring[0]));
 
-        q->read = (q->read + 1) % q->size;
+        unsigned i;
+        for (i = 0; q->read != q->write; i++) {
+            new_ring[i] = q->ring[q->read];
+            q->read = (q->read + 1) % q->size;
+        }
+
+        free(q->ring);
+        q->ring = new_ring;
+        q->size = new_size;
+        q->read = 0;
+        q->write = i;
     }
 
     q->ring[q->write] = entry;
     q->write = (q->write + 1) % q->size;
 
-    log_print(TRACE, "added entry to queue, write %d read %d", q->write, q->read);
+    log_print(TRACE, "added entry to queue, write %u read %u", q->write, q->read);
 }
 
 static bool queue_pop(struct queue_entry* entry) {
-    struct queue* q = &thread_state.buf;
+    struct queue* q = &thread_state.queue;
 
     if (q->read == q->write) {
         return false;
@@ -290,7 +295,7 @@ static bool queue_pop(struct queue_entry* entry) {
     *entry = q->ring[q->read];
     q->read = (q->read + 1) % q->size;
 
-    log_print(TRACE, "removed entry from queue, write %d read %d", q->write, q->read);
+    log_print(TRACE, "removed entry from queue, write %u read %u", q->write, q->read);
 
     return true;
 }
@@ -326,10 +331,19 @@ static void* thread_entrypoint(void* data) {
     pthread_mutex_unlock(&thread_state.mutex);
     cleanup_statements();
 
+    struct queue *q = &thread_state.queue;
+    free(q->ring);
+    q->ring = NULL;
+    q->size = 0;
+
     return NULL;
 }
 
 bool start_db_thread(struct sqlite3* db) {
+    struct queue *q = &thread_state.queue;
+    q->size = 16;
+    q->ring = xcalloc(q->size, sizeof(q->ring[0]));
+
     if (!prepare_statements(db)) {
         goto err;
     }
@@ -347,6 +361,11 @@ bool start_db_thread(struct sqlite3* db) {
 err:
     thread_state.should_exit = true;
     cleanup_statements();
+
+    free(q->ring);
+    q->ring = NULL;
+    q->size = 0;
+
     return false;
 }
 
