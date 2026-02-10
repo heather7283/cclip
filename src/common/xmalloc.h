@@ -32,4 +32,6 @@ void* xreallocarray(void* ptr, size_t n, size_t size);
 
 /* strdup, but aborts on alloc fail and returns NULL when called with NULL */
 char* xstrdup(const char* s);
+/* duplicate memory region, aborts on alloc fail and returns NULL when called with NULL */
+void* xmemdup(const void* src, size_t size);
 

@@ -52,3 +52,7 @@ char* xstrdup(const char* s) {
     return s ? check_alloc(strdup(s)) : 0;
 }
 
+void* xmemdup(const void* src, size_t size) {
+    return src ? memcpy(check_alloc(malloc(size)), src, size) : 0;
+}
+

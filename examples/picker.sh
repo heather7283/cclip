@@ -17,5 +17,5 @@ fzf \
   --preview-window wrap \
   --bind "ctrl-d:execute-silent(cclip delete -s {1})+reload(${list_cmd})" \
   --bind "ctrl-r:reload(${list_cmd})" \
-  --bind "enter:become(cclip get {1} | wl-copy -t {2})"
+  --bind "enter:become(cclip copy {1})"
 

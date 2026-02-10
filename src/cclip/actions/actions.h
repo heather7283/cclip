@@ -21,9 +21,10 @@
 #include <sqlite3.h>
 
 #define FOR_LIST_OF_ACTIONS(DO) \
-    DO(delete) \
-    DO(get) \
     DO(list) \
+    DO(get) \
+    DO(copy) \
+    DO(delete) \
     DO(tag) \
     DO(tags) \
     DO(vacuum) \

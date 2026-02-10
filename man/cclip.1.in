@@ -72,6 +72,17 @@ If \fIFIELDS\fP is specified, it is treated the same way as in \fBlist\fP.
 .RE
 
 .PP
+\fBcopy\fP [-pf] \fIID\fP
+.RS 4
+Puts entry with specified \fIID\fP into wayland clipboard.
+
+.PP
+If -p is specified, primary selection will be used.
+.br
+If -f is specified, cclip will stay in foreground.
+.RE
+
+.PP
 \fBdelete\fP [-s] \fIID\fP
 .RS 4
 Delete entry with specified \fIID\fP from database.
@@ -103,6 +114,12 @@ In the third form, delete ALL tags from database.
 .RE
 
 .PP
+\fBvacuum\fP
+.RS 4
+Rebuilds the database file, repacking it into a minimal amount of space.
+.RE
+
+.PP
 \fBwipe\fP [-ts]
 .RS 4
 Remove all entries from the database. This preserves tagged entries by default.
@@ -112,51 +129,27 @@ If -t is specified, tagged entries are not preserved.
 If -s is specified, it is treated in the same way as in \fBdelete\fP.
 .RE
 
-.PP
-\fBvacuum\fP
-.RS 4
-Rebuilds the database file, repacking it into a minimal amount of space.
-.RE
-
 .SH EXAMPLES
+
 Get most recently saved PNG image and display it with
 .BR chafa (1)
 .PP
 .RS 4
 .EX
-.\" SRC BEGIN (cclip_png_chafa.sh)
 cclip list id,mime | awk '$2 == "image/png" {print $1; exit}' | cclip get - | chafa
-.\" SRC END
 .EE
 .RE
 .PP
+
 Interactive picker using
 .BR fzf (1)
 .PP
 .RS 4
 .EX
-.\" SRC BEGIN (cclip_fzf_picker.sh)
-#!/bin/sh
-
-set -- $(cclip list | fzf --with-nth 3..)
-id="$1"
-mime="$2"
-[ -n "$id" ] && cclip get "$id" | wl-copy --type "$mime"
-.\" SRC END
+cclip list | fzf --with-nth 3.. --accept-nth 1 | cclip copy -
 .EE
 .RE
 .PP
-Example above can be simplifed if you let
-.BR wl-copy (1)
-figure out MIME type
-.PP
-.RS 4
-.EX
-.\" SRC BEGIN (cclip_fzf_picker_simple.sh)
-cclip list | fzf --with-nth 3.. --accept-nth 1 | cclip get - | wl-copy
-.\" SRC END
-.EE
-.RE
 
 .SH BUGS
 Please report bugs to https://github.com/heather7283/cclip/issues.
@@ -175,3 +168,4 @@ Describe steps necessary to reproduce the issue.
 .BR wl-clipboard (1),
 .BR fzf (1),
 .BR rofi (1)
+

@@ -75,6 +75,7 @@ cclip_sources = files([
     'src/cclip/actions/delete.c',
     'src/cclip/actions/wipe.c',
     'src/cclip/actions/vacuum.c',
+    'src/cclip/actions/copy.c',
 ])
 
 cclipd_sources = files([
@@ -86,10 +87,10 @@ cclipd_sources = files([
     'src/cclipd/eventloop.c',
 ])
 
-executable('cclip', cclip_sources + common_sources,
+executable('cclip', cclip_sources + common_sources + protocol_sources,
     include_directories: include_dirs,
     link_with: [ getopt_lib ],
-    dependencies: [ sqlite3_dep ],
+    dependencies: [ sqlite3_dep, wayland_client_dep ],
     install: true
 )
 
