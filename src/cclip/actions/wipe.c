@@ -22,6 +22,7 @@
 
 #include <sqlite3.h>
 
+#include "actions.h"
 #include "getopt.h"
 #include "db.h"
 #include "log.h"
@@ -39,7 +40,9 @@ static void print_help(void) {
     fputs(help, stdout);
 }
 
-int action_wipe(int argc, char** argv, struct sqlite3* db) {
+void action_wipe(int argc, char** argv, struct sqlite3* db) {
+    int retcode = 0;
+
     bool preserve_tagged = true;
     bool secure_delete = false;
 
@@ -56,16 +59,16 @@ int action_wipe(int argc, char** argv, struct sqlite3* db) {
             break;
         case 'h':
             print_help();
-            break;
+            OUT(0);
         case '?':
             log_print(ERR, "unknown option: %c", optopt);
-            break;
+            OUT(1);
         case ':':
             log_print(ERR, "missing arg for %c", optopt);
-            break;
+            OUT(1);
         default:
             log_print(ERR, "error while parsing command line options");
-            break;
+            OUT(1);
         }
     }
     argc = argc - optind;
@@ -73,11 +76,11 @@ int action_wipe(int argc, char** argv, struct sqlite3* db) {
 
     if (argc > 0) {
         log_print(ERR, "extra arguments on the command line");
-        return 1;
+        OUT(1);
     }
 
     if (secure_delete && !db_set_secure_delete(db, true)) {
-        return 1;
+        OUT(1);
     }
 
     const char* sql;
@@ -90,9 +93,11 @@ int action_wipe(int argc, char** argv, struct sqlite3* db) {
     char* errmsg;
     if (sqlite3_exec(db, sql, NULL, NULL, &errmsg) != SQLITE_OK) {
         log_print(ERR, "sqlite error: %s", errmsg);
-        return 1;
+        OUT(1);
     }
 
-    return 0;
+out:
+    sqlite3_close(db);
+    exit(retcode);
 }
 

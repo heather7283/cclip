@@ -19,11 +19,13 @@
 #include <sys/uio.h>
 #include <limits.h>
 #include <string.h>
+#include <stdlib.h>
 #include <errno.h>
 #include <stdio.h>
 
 #include <sqlite3.h>
 
+#include "actions.h"
 #include "../utils.h"
 #include "db.h"
 #include "macros.h"
@@ -42,6 +44,7 @@ static void print_help(void) {
 }
 
 static int do_list(struct sqlite3* db) {
+    int retcode = 0;
     struct sqlite3_stmt* stmt = NULL;
 
     const char* sql = TOSTRING(
@@ -49,7 +52,7 @@ static int do_list(struct sqlite3* db) {
     );
 
     if (!db_prepare_stmt(db, sql, &stmt)) {
-        return 1;
+        OUT(1);
     }
 
     int rc;
@@ -63,21 +66,22 @@ static int do_list(struct sqlite3* db) {
 
         if (!writev_full(1, iov, 2)) {
             log_print(ERR, "failed to write tag name: %s", strerror(errno));
-            sqlite3_finalize(stmt);
-            return 1;
+            OUT(1);
         }
     }
 
     if (rc != SQLITE_DONE) {
         log_print(ERR, "failed to list tags: %s", sqlite3_errmsg(db));
-        return 1;
+        OUT(1);
     }
 
+out:
     sqlite3_finalize(stmt);
-    return 0;
+    return retcode;
 }
 
 static int do_delete(struct sqlite3* db, const char* name) {
+    int retcode = 0;
     struct sqlite3_stmt* stmt = NULL;
 
     const char* sql = TOSTRING(
@@ -87,7 +91,7 @@ static int do_delete(struct sqlite3* db, const char* name) {
     );
 
     if (!db_prepare_stmt(db, sql, &stmt)) {
-        return 1;
+        OUT(1);
     }
 
     STMT_BIND(stmt, text, "@name", name, -1, SQLITE_STATIC);
@@ -97,14 +101,16 @@ static int do_delete(struct sqlite3* db, const char* name) {
 
     if (rc != SQLITE_DONE) {
         log_print(ERR, "failed to delete tag(s): %s", sqlite3_errmsg(db));
-        return 1;
+        OUT(1);
     }
 
     if (sqlite3_changes(db) == 0) {
         log_print(WARN, "no tags were deleted");
     }
 
-    return 0;
+out:
+    sqlite3_finalize(stmt);
+    return retcode;
 }
 
 static int do_wipe(struct sqlite3* db) {
@@ -120,26 +126,25 @@ static int do_wipe(struct sqlite3* db) {
     return 0;
 }
 
-int action_tags(int argc, char** argv, struct sqlite3* db) {
+void action_tags(int argc, char** argv, struct sqlite3* db) {
     int retcode = 0;
 
+    RESET_GETOPT();
     int opt;
-    optreset = 1;
-    optind = 0;
     while ((opt = getopt(argc, argv, ":h")) != -1) {
         switch (opt) {
         case 'h':
             print_help();
-            return 0;
+            OUT(0);
         case '?':
             log_print(ERR, "unknown option: %c", optopt);
-            return 1;
+            OUT(1);
         case ':':
             log_print(ERR, "missing arg for %c", optopt);
-            return 1;
+            OUT(1);
         default:
             log_print(ERR, "error while parsing command line options");
-            return 1;
+            OUT(1);
         }
     }
     argc = argc - optind;
@@ -148,32 +153,34 @@ int action_tags(int argc, char** argv, struct sqlite3* db) {
     if (argc < 1 || STREQ(argv[0], "list")) {
         if (argc > 1) {
             log_print(ERR, "extra arguments on the command line");
-            return 1;
+            OUT(1);
         }
 
         retcode = do_list(db);
     } else if (STREQ(argv[0], "delete")) {
         if (argc < 2) {
             log_print(ERR, "tag name to delete is not specified");
-            return 1;
+            OUT(1);
         } else if (argc > 2) {
             log_print(ERR, "extra arguments on the command line");
-            return 1;
+            OUT(1);
         }
 
         retcode = do_delete(db, argv[1]);
     } else if (STREQ(argv[0], "wipe")) {
         if (argc > 1) {
             log_print(ERR, "extra arguments on the command line");
-            return 1;
+            OUT(1);
         }
 
         retcode = do_wipe(db);
     } else {
         log_print(ERR, "invalid argument to tags: %s", argv[0]);
-        return 1;
+        OUT(1);
     }
 
-    return retcode;
+out:
+    sqlite3_close(db);
+    exit(retcode);
 }
 

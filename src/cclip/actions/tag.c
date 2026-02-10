@@ -17,10 +17,11 @@
  */
 
 #include <stdio.h>
-#include <string.h>
+#include <stdlib.h>
 
 #include <sqlite3.h>
 
+#include "actions.h"
 #include "../utils.h"
 #include "db.h"
 #include "getopt.h"
@@ -43,15 +44,14 @@ static void print_help(void) {
     fputs(help, stdout);
 }
 
-int action_tag(int argc, char** argv, struct sqlite3* db) {
+void action_tag(int argc, char** argv, struct sqlite3* db) {
     int retcode = 0;
-    bool delete_tag = false;
-
     struct sqlite3_stmt* stmt = NULL;
 
+    bool delete_tag = false;
+
+    RESET_GETOPT();
     int opt;
-    optreset = 1;
-    optind = 0;
     while ((opt = getopt(argc, argv, ":hd")) != -1) {
         switch (opt) {
         case 'd':
@@ -59,19 +59,16 @@ int action_tag(int argc, char** argv, struct sqlite3* db) {
             break;
         case 'h':
             print_help();
-            goto out;
+            OUT(0);
         case '?':
             log_print(ERR, "unknown option: %c", optopt);
-            retcode = 1;
-            goto out;
+            OUT(1);
         case ':':
             log_print(ERR, "missing arg for %c", optopt);
-            retcode = 1;
-            goto out;
+            OUT(1);
         default:
             log_print(ERR, "error while parsing command line options");
-            retcode = 1;
-            goto out;
+            OUT(1);
         }
     }
     argc = argc - optind;
@@ -82,8 +79,7 @@ int action_tag(int argc, char** argv, struct sqlite3* db) {
     if (argc < 2) {
         if (!delete_tag) {
             log_print(ERR, "not enough arguments");
-            retcode = 1;
-            goto out;
+            OUT(1);
         }
         id_str = argv[0];
     } else if (argc == 2) {
@@ -91,20 +87,17 @@ int action_tag(int argc, char** argv, struct sqlite3* db) {
         tag_str = argv[1];
     } else {
         log_print(ERR, "extra arguments on the command line");
-        retcode = 1;
-        goto out;
+        OUT(1);
     }
 
     if (tag_str != NULL && !delete_tag && !is_tag_valid(tag_str)) {
         log_print(ERR, "invalid tag");
-        retcode = 1;
-        goto out;
+        OUT(1);
     }
 
     int64_t entry_id;
     if (!get_id(id_str, &entry_id)) {
-        retcode = 1;
-        goto out;
+        OUT(1);
     }
 
     int ret;
@@ -123,8 +116,7 @@ int action_tag(int argc, char** argv, struct sqlite3* db) {
         }
 
         if (!db_prepare_stmt(db, sql, &stmt)) {
-            retcode = 1;
-            goto out;
+            OUT(1);
         }
 
         STMT_BIND(stmt, int64, "@entry_id", entry_id);
@@ -135,14 +127,12 @@ int action_tag(int argc, char** argv, struct sqlite3* db) {
         ret = sqlite3_step(stmt);
         if (ret != SQLITE_DONE) {
             log_print(ERR, "failed to delete tags from entry: %s", sqlite3_errmsg(db));
-            retcode = 1;
-            goto out;
+            OUT(1);
         }
 
         if (sqlite3_changes(db) < 1) {
             log_print(ERR, "table was not modified, either tag or entry do not exist");
-            retcode = 1;
-            goto out;
+            OUT(1);
         }
     } else /* if (!delete_tag) */ {
         const char* sql_insert_into_tags = TOSTRING(
@@ -150,8 +140,7 @@ int action_tag(int argc, char** argv, struct sqlite3* db) {
         );
 
         if (!db_prepare_stmt(db, sql_insert_into_tags, &stmt)) {
-            retcode = 1;
-            goto out;
+            OUT(1);
         }
 
         STMT_BIND(stmt, text, "@tag_name", tag_str, -1, SQLITE_STATIC);
@@ -159,8 +148,7 @@ int action_tag(int argc, char** argv, struct sqlite3* db) {
         ret = sqlite3_step(stmt);
         if (ret != SQLITE_DONE) {
             log_print(ERR, "failed to add tag into tags table: %s", sqlite3_errmsg(db));
-            retcode = 1;
-            goto out;
+            OUT(1);
         }
 
         sqlite3_finalize(stmt);
@@ -172,8 +160,7 @@ int action_tag(int argc, char** argv, struct sqlite3* db) {
         );
 
         if (!db_prepare_stmt(db, sql_insert_into_history_tags, &stmt)) {
-            retcode = 1;
-            goto out;
+            OUT(1);
         }
 
         STMT_BIND(stmt, text, "@tag_name", tag_str, -1, SQLITE_STATIC);
@@ -182,13 +169,13 @@ int action_tag(int argc, char** argv, struct sqlite3* db) {
         ret = sqlite3_step(stmt);
         if (ret != SQLITE_DONE) {
             log_print(ERR, "failed to add tag to entry: %s (duplicate tag?)", sqlite3_errmsg(db));
-            retcode = 1;
-            goto out;
+            OUT(1);
         }
     }
 
 out:
     sqlite3_finalize(stmt);
-    return retcode;
+    sqlite3_close(db);
+    exit(retcode);
 }
 

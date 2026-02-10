@@ -21,6 +21,7 @@
 
 #include <sqlite3.h>
 
+#include "actions.h"
 #include "../utils.h"
 #include "collections/string.h"
 #include "db.h"
@@ -40,31 +41,26 @@ static void print_help(void) {
     fputs(help, stdout);
 }
 
-int action_get(int argc, char** argv, struct sqlite3* db) {
+void action_get(int argc, char** argv, struct sqlite3* db) {
     int retcode = 0;
-
     struct sqlite3_stmt* stmt = NULL;
 
+    RESET_GETOPT();
     int opt;
-    optreset = 1;
-    optind = 0;
     while ((opt = getopt(argc, argv, ":h")) != -1) {
         switch (opt) {
         case 'h':
             print_help();
-            goto out;
+            OUT(0);
         case '?':
             log_print(ERR, "unknown option: %c", optopt);
-            retcode = 1;
-            goto out;
+            OUT(1);
         case ':':
             log_print(ERR, "missing arg for %c", optopt);
-            retcode = 1;
-            goto out;
+            OUT(1);
         default:
             log_print(ERR, "error while parsing command line options");
-            retcode = 1;
-            goto out;
+            OUT(1);
         }
     }
     argc = argc - optind;
@@ -74,8 +70,7 @@ int action_get(int argc, char** argv, struct sqlite3* db) {
     char* fields_str;
     if (argc < 1) {
         log_print(ERR, "not enough arguments");
-        retcode = 1;
-        goto out;
+        OUT(1);
     } else if (argc == 1) {
         id_str = argv[0];
         fields_str = NULL;
@@ -84,22 +79,19 @@ int action_get(int argc, char** argv, struct sqlite3* db) {
         fields_str = argv[1];
     } else {
         log_print(ERR, "extra arguments on the command line");
-        retcode = 1;
-        goto out;
+        OUT(1);
     }
 
     int64_t entry_id;
     if (!get_id(id_str, &entry_id)) {
-        retcode = 1;
-        goto out;
+        OUT(1);
     }
 
     if (fields_str == NULL) {
         const char* sql = "SELECT data FROM history WHERE id = @entry_id";
 
         if (!db_prepare_stmt(db, sql, &stmt)) {
-            retcode = 1;
-            goto out;
+            OUT(1);
         }
 
         STMT_BIND(stmt, int64, "@entry_id", entry_id);
@@ -113,19 +105,16 @@ int action_get(int argc, char** argv, struct sqlite3* db) {
             writev_full(1, &iov, 1);
         } else if (ret == SQLITE_DONE) {
             log_print(ERR, "no entry found with id %li", entry_id);
-            retcode = 1;
-            goto out;
+            OUT(1);
         } else {
             log_print(ERR, "sqlite error: %s", sqlite3_errmsg(db));
-            retcode = 1;
-            goto out;
+            OUT(1);
         }
     } else {
         enum select_fields fields[SELECT_FIELDS_COUNT];
         int nfields = build_field_list(fields_str, fields);
         if (nfields < 1) {
-            retcode = 1;
-            goto out;
+            OUT(1);
         }
 
         struct string sql = {0};
@@ -157,8 +146,7 @@ int action_get(int argc, char** argv, struct sqlite3* db) {
                 break;
             default:
                 log_print(ERR, "invalid field enum value: %d (BUG)", fields[i]);
-                retcode = 1;
-                goto out;
+                OUT(1);
             }
         }
         sql.str[sql.len - 1] = ' ';
@@ -179,8 +167,7 @@ int action_get(int argc, char** argv, struct sqlite3* db) {
         int ret;
 
         if (!db_prepare_stmt(db, sql.str, &stmt)) {
-            retcode = 1;
-            goto out;
+            OUT(1);
         }
 
         STMT_BIND(stmt, int64, "@entry_id", entry_id);
@@ -191,7 +178,7 @@ int action_get(int argc, char** argv, struct sqlite3* db) {
             struct iovec* iov = malloc(sizeof(*iov) * (ncols * 2));
             for (int i = 0; i < ncols; i++) {
                 iov[i * 2] = (struct iovec){
-                    .iov_base = (void *)sqlite3_column_blob(stmt, i),
+                    .iov_base = (void*)sqlite3_column_blob(stmt, i),
                     .iov_len = sqlite3_column_bytes(stmt, i),
                 };
                 iov[(i * 2) + 1] = (struct iovec){
@@ -203,17 +190,16 @@ int action_get(int argc, char** argv, struct sqlite3* db) {
             writev_full(1, iov, ncols * 2);
         } else if (ret == SQLITE_DONE) {
             log_print(ERR, "no entry found with id %li", entry_id);
-            retcode = 1;
-            goto out;
+            OUT(1);
         } else {
             log_print(ERR, "sqlite error: %s", sqlite3_errmsg(db));
-            retcode = 1;
-            goto out;
+            OUT(1);
         }
     }
 
 out:
     sqlite3_finalize(stmt);
-    return retcode;
+    sqlite3_close(db);
+    exit(retcode);
 }
 

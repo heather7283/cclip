@@ -16,58 +16,26 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <string.h>
 #include <stdio.h>
 #include <limits.h>
 #include <stdlib.h>
+#include <assert.h>
 
 #include <sqlite3.h>
 
+#include "actions/actions.h"
 #include "xmalloc.h"
 #include "db.h"
 #include "getopt.h"
-#include "macros.h"
 #include "log.h"
 
-#define FOR_LIST_OF_ACTIONS(DO) \
-    DO(delete) \
-    DO(get) \
-    DO(list) \
-    DO(tag) \
-    DO(tags) \
-    DO(vacuum) \
-    DO(wipe) \
-
-typedef int (action_func_t)(int argc, char** argv, struct sqlite3* db);
-
-#define DEFINE_ACTION_FUNCTION(name, ...) action_func_t action_##name;
-FOR_LIST_OF_ACTIONS(DEFINE_ACTION_FUNCTION)
-
-static const struct {
-    const char* const name;
-    action_func_t* const action;
-} actions[] = {
-    #define DEFINE_ACTION_TABLE(name, ...) { #name, action_##name },
-    FOR_LIST_OF_ACTIONS(DEFINE_ACTION_TABLE)
-};
-
-static action_func_t* match_action(const char* input) {
-    for (size_t i = 0; i < SIZEOF_ARRAY(actions); i++) {
-        if (STREQ(input, actions[i].name)) {
-            return actions[i].action;
-        }
-    }
-
-    return NULL;
-}
-
-void print_version_and_exit(void) {
+static void print_version_and_exit(void) {
     fprintf(stderr, "cclip version %s, branch %s, commit %s\n",
             CCLIP_GIT_TAG, CCLIP_GIT_BRANCH, CCLIP_GIT_COMMIT_HASH);
     exit(0);
 }
 
-void print_help_and_exit(FILE *stream, int rc) {
+static void print_help_and_exit(FILE* stream, int rc) {
     const char* help =
         "cclip - command line interface for cclip database\n"
         "\n"
@@ -88,9 +56,7 @@ void print_help_and_exit(FILE *stream, int rc) {
     exit(rc);
 }
 
-
 int main(int argc, char** argv) {
-    int exit_status = 0;
     const char* db_path = NULL;
     enum loglevel loglevel = WARN;
     struct sqlite3* db = NULL;
@@ -128,41 +94,40 @@ int main(int argc, char** argv) {
     argv = &argv[optind];
     if (argc < 1) {
         log_print(ERR, "no action provided");
-        exit_status = 1;
-        goto cleanup;
+        goto err;
     }
 
     db = db_open(db_path, false);
     if (db == NULL) {
         log_print(ERR, "failed to open database");
-        exit_status = 1;
-        goto cleanup;
+        goto err;
     };
 
     const int user_version = db_get_user_version(db);
     if (user_version < DB_USER_SCHEMA_VERSION) {
         log_print(ERR, "db version %d is older than the version this cclip can work with (%d)",
                   user_version, DB_USER_SCHEMA_VERSION);
-        exit_status = 1;
-        goto cleanup;
+        goto err;
     } else if (user_version > DB_USER_SCHEMA_VERSION) {
         log_print(ERR, "db version %d is newer than the version this cclip can work with (%d)",
                   user_version, DB_USER_SCHEMA_VERSION);
-        exit_status = 1;
-        goto cleanup;
+        goto err;
     }
 
     action_func_t* action = match_action(argv[0]);
     if (action == NULL) {
         log_print(ERR, "invalid action: %s", argv[0]);
-        exit_status = 1;
-        goto cleanup;
+        goto err;
     }
 
-    exit_status = action(argc, argv, db);
+    /* delegate full control to action handler, including cleanup duties.
+     * action handler should not return */
+    action(argc, argv, db);
 
-cleanup:
+    assert(!"unreachable");
+
+err:
     db_close(db);
-    exit(exit_status);
+    return 1;
 }
 

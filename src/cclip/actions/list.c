@@ -25,6 +25,7 @@
 
 #include <sqlite3.h>
 
+#include "actions.h"
 #include "../utils.h"
 #include "collections/string.h"
 #include "db.h"
@@ -46,16 +47,15 @@ static void print_help(void) {
     fputs(help, stdout);
 }
 
-int action_list(int argc, char** argv, struct sqlite3* db) {
+void action_list(int argc, char** argv, struct sqlite3* db) {
     int retcode = 0;
+    struct sqlite3_stmt* stmt = NULL;
+
     bool print_only_tagged = false;
     const char* tag = NULL;
 
-    struct sqlite3_stmt* stmt = NULL;
-
+    RESET_GETOPT();
     int opt;
-    optreset = 1;
-    optind = 0;
     while ((opt = getopt(argc, argv, ":T:th")) != -1) {
         switch (opt) {
         case 'T':
@@ -67,19 +67,16 @@ int action_list(int argc, char** argv, struct sqlite3* db) {
             break;
         case 'h':
             print_help();
-            goto out;
+            OUT(0);
         case '?':
             log_print(ERR, "unknown option: %c", optopt);
-            retcode = 1;
-            goto out;
+            OUT(1);
         case ':':
             log_print(ERR, "missing arg for %c", optopt);
-            retcode = 1;
-            goto out;
+            OUT(1);
         default:
             log_print(ERR, "error while parsing command line options");
-            retcode = 1;
-            goto out;
+            OUT(1);
         }
     }
     argc = argc - optind;
@@ -94,13 +91,11 @@ int action_list(int argc, char** argv, struct sqlite3* db) {
         nfields = build_field_list(argv[0], fields);
     } else {
         log_print(ERR, "extra arguments on the command line");
-        retcode = 1;
-        goto out;
+        OUT(1);
     }
 
     if (nfields < 1) {
-        retcode = 1;
-        goto out;
+        OUT(1);
     }
 
     struct string sql = {0};
@@ -132,8 +127,7 @@ int action_list(int argc, char** argv, struct sqlite3* db) {
             break;
         default:
             log_print(ERR, "invalid field enum value: %d (BUG)", fields[i]);
-            retcode = 1;
-            goto out;
+            OUT(1);
         }
     }
     sql.str[sql.len - 1] = ' ';
@@ -170,8 +164,7 @@ int action_list(int argc, char** argv, struct sqlite3* db) {
     int rc;
 
     if (!db_prepare_stmt(db, sql.str, &stmt)) {
-        retcode = 1;
-        goto out;
+        OUT(1);
     }
 
     if (tag != NULL) {
@@ -195,18 +188,17 @@ int action_list(int argc, char** argv, struct sqlite3* db) {
 
         if (!writev_full(1, iov, ncols * 2)) {
             log_print(ERR, "failed to write row: %s", strerror(errno));
-            retcode = 1;
-            goto out;
+            OUT(1);
         }
     }
     if (rc != SQLITE_DONE) {
         log_print(ERR, "failed to list rows: %s", sqlite3_errmsg(db));
-        retcode = 1;
-        goto out;
+        OUT(1);
     }
 
 out:
     sqlite3_finalize(stmt);
-    return retcode;
+    sqlite3_close(db);
+    exit(retcode);
 }
 

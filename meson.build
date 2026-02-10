@@ -5,8 +5,10 @@ project(
     default_options: ['warning_level=3']
 )
 
-# supported by both clang and gcc and makes my life easier
-add_project_arguments('-Wno-gnu-zero-variadic-macro-arguments', language: 'c')
+cc = meson.get_compiler('c')
+if cc.get_id() != 'gcc'
+  add_project_arguments('-Wno-gnu-zero-variadic-macro-arguments', language: 'c')
+endif
 add_project_arguments('-Wno-unused-parameter', language: 'c')
 add_project_arguments('-Wno-pedantic', language: 'c')
 
@@ -65,6 +67,7 @@ common_sources = files([
 cclip_sources = files([
     'src/cclip/cclip.c',
     'src/cclip/utils.c',
+    'src/cclip/actions/actions.c',
     'src/cclip/actions/list.c',
     'src/cclip/actions/get.c',
     'src/cclip/actions/tag.c',
