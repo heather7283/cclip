@@ -31,13 +31,8 @@ if git_branch == ''
 endif
 add_project_arguments('-DCCLIP_GIT_BRANCH="@0@"'.format(git_branch), language: 'c')
 
-static_link = get_option('static')
-if static_link
-    add_project_link_arguments('-static', language: 'c')
-endif
-
-sqlite3_dep = dependency('sqlite3', static: static_link)
-wayland_client_dep = dependency('wayland-client', static: static_link)
+sqlite3_dep = dependency('sqlite3')
+wayland_client_dep = dependency('wayland-client')
 
 if get_option('man')
     subdir('man')
