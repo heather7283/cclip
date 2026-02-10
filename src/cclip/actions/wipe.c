@@ -18,12 +18,12 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <getopt.h>
 #include <stdbool.h>
 
 #include <sqlite3.h>
 
 #include "actions.h"
-#include "getopt.h"
 #include "db.h"
 #include "log.h"
 
@@ -46,9 +46,8 @@ void action_wipe(int argc, char** argv, struct sqlite3* db) {
     bool preserve_tagged = true;
     bool secure_delete = false;
 
+    RESET_GETOPT();
     int opt;
-    optreset = 1;
-    optind = 0;
     while ((opt = getopt(argc, argv, ":hts")) != -1) {
         switch (opt) {
         case 's':

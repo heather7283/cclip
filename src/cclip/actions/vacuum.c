@@ -18,11 +18,11 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <getopt.h>
 
 #include <sqlite3.h>
 
 #include "actions.h"
-#include "getopt.h"
 #include "log.h"
 
 static void print_help(void) {

@@ -20,6 +20,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <assert.h>
+#include <getopt.h>
 #include <errno.h>
 #include <stdio.h>
 #include <fcntl.h>
@@ -31,7 +32,6 @@
 #include "../utils.h"
 #include "xmalloc.h"
 #include "db.h"
-#include "getopt.h"
 #include "log.h"
 
 #include "wlr-data-control-unstable-v1.h"

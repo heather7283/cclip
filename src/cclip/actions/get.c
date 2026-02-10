@@ -17,6 +17,7 @@
  */
 
 #include <stdlib.h>
+#include <getopt.h>
 #include <stdio.h>
 
 #include <sqlite3.h>
@@ -25,7 +26,6 @@
 #include "../utils.h"
 #include "collections/string.h"
 #include "db.h"
-#include "getopt.h"
 #include "xmalloc.h"
 #include "log.h"
 

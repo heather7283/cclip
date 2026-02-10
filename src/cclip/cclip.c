@@ -20,13 +20,13 @@
 #include <limits.h>
 #include <stdlib.h>
 #include <assert.h>
+#include <getopt.h>
 
 #include <sqlite3.h>
 
 #include "actions/actions.h"
 #include "xmalloc.h"
 #include "db.h"
-#include "getopt.h"
 #include "log.h"
 
 static void print_version_and_exit(void) {
@@ -60,6 +60,9 @@ int main(int argc, char** argv) {
     const char* db_path = NULL;
     enum loglevel loglevel = WARN;
     struct sqlite3* db = NULL;
+
+    /* prevent glibc impl of getopt from permuting argv contents when scanning */
+    putenv("POSIXLY_CORRECT=1");
 
     int opt;
     while ((opt = getopt(argc, argv, ":d:vVh")) != -1) {

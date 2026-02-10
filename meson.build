@@ -41,10 +41,7 @@ endif
 
 subdir('protocol')
 
-getopt_lib = static_library('getopt', 'thirdparty/getopt/getopt.c')
-
 include_dirs = include_directories([
-    'thirdparty/getopt',
     'thirdparty/pollen',
     'src/common',
     'src'
@@ -83,14 +80,12 @@ cclipd_sources = files([
 
 executable('cclip', cclip_sources + common_sources + protocol_sources,
     include_directories: include_dirs,
-    link_with: [ getopt_lib ],
     dependencies: [ sqlite3_dep, wayland_client_dep ],
     install: true
 )
 
 executable('cclipd', cclipd_sources + common_sources + protocol_sources,
     include_directories: include_dirs,
-    link_with: [ getopt_lib ],
     dependencies: [ sqlite3_dep, wayland_client_dep, xxhash_dep ],
     install: true
 )

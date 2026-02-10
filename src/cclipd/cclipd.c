@@ -16,6 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <getopt.h>
 #include <stdio.h>
 
 #include "wayland.h"
@@ -25,7 +26,6 @@
 #include "config.h"
 #include "eventloop.h"
 #include "xmalloc.h"
-#include "getopt.h"
 
 static void print_version_and_exit(void) {
     fprintf(stderr, "cclipd version %s, branch %s, commit %s\n",

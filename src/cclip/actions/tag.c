@@ -18,13 +18,13 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <getopt.h>
 
 #include <sqlite3.h>
 
 #include "actions.h"
 #include "../utils.h"
 #include "db.h"
-#include "getopt.h"
 #include "macros.h"
 #include "log.h"
 

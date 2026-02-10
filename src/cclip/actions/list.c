@@ -20,6 +20,7 @@
 #include <limits.h>
 #include <stdlib.h>
 #include <string.h>
+#include <getopt.h>
 #include <errno.h>
 #include <stdio.h>
 
@@ -30,7 +31,6 @@
 #include "collections/string.h"
 #include "db.h"
 #include "macros.h"
-#include "getopt.h"
 #include "xmalloc.h"
 #include "log.h"
 

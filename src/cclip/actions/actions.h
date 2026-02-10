@@ -38,6 +38,6 @@ FOR_LIST_OF_ACTIONS(DEFINE_ACTION_FUNCTION)
 action_func_t* match_action(const char* input);
 
 /* some helper macros */
-#define RESET_GETOPT() ({ optreset = 1; optind = 0; })
+#define RESET_GETOPT() ({ optind = 0; })
 #define OUT(rc) ({ retcode = (rc); goto out; })
 

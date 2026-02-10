@@ -20,6 +20,7 @@
 #include <limits.h>
 #include <string.h>
 #include <stdlib.h>
+#include <getopt.h>
 #include <errno.h>
 #include <stdio.h>
 
@@ -29,7 +30,6 @@
 #include "../utils.h"
 #include "db.h"
 #include "macros.h"
-#include "getopt.h"
 #include "log.h"
 
 static void print_help(void) {
