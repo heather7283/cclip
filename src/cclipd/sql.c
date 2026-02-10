@@ -22,6 +22,7 @@
 #include <stdlib.h>
 
 #include <sqlite3.h>
+#include <xxhash.h>
 
 #include "db.h"
 #include "sql.h"
@@ -29,7 +30,6 @@
 #include "preview.h"
 #include "log.h"
 #include "macros.h"
-#include "xxhash.h"
 
 #define RING_BUFFER_SIZE (16 + 1)
 

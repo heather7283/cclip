@@ -33,6 +33,7 @@ add_project_arguments('-DCCLIP_GIT_BRANCH="@0@"'.format(git_branch), language: '
 
 sqlite3_dep = dependency('sqlite3')
 wayland_client_dep = dependency('wayland-client')
+xxhash_dep = dependency('libxxhash')
 
 if get_option('man')
     subdir('man')
@@ -40,11 +41,9 @@ endif
 
 subdir('protocol')
 
-xxhash_lib = static_library('xxhash', 'thirdparty/xxhash/xxhash.c')
 getopt_lib = static_library('getopt', 'thirdparty/getopt/getopt.c')
 
 include_dirs = include_directories([
-    'thirdparty/xxhash',
     'thirdparty/getopt',
     'thirdparty/pollen',
     'src/common',
@@ -91,8 +90,8 @@ executable('cclip', cclip_sources + common_sources + protocol_sources,
 
 executable('cclipd', cclipd_sources + common_sources + protocol_sources,
     include_directories: include_dirs,
-    link_with: [ xxhash_lib, getopt_lib ],
-    dependencies: [ sqlite3_dep, wayland_client_dep ],
+    link_with: [ getopt_lib ],
+    dependencies: [ sqlite3_dep, wayland_client_dep, xxhash_dep ],
     install: true
 )
 
