@@ -17,12 +17,13 @@
  */
 
 #define _GNU_SOURCE
+#include <sys/ioctl.h>
 #include <unistd.h>
 #include <string.h>
-#include <errno.h>
 #include <fnmatch.h>
 #include <stdlib.h>
 #include <fcntl.h>
+#include <errno.h>
 
 #include <wayland-client.h>
 
