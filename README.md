@@ -20,7 +20,7 @@ cclip was heavily inspired by [cliphist](https://github.com/sentriz/cliphist) an
 
 ### Building from source
 > [!NOTE]
-> Make sure you have **libwayland-client**, **libsqlite3** and **wayland-scanner** installed before proceeding.
+> Make sure you have **libwayland-client**, **libsqlite3**, **libxxhash** and **wayland-scanner** installed before proceeding.
 
 cclip uses meson build system. To build cclip locally:
 ```
