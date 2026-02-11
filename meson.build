@@ -8,6 +8,8 @@ project(
 cc = meson.get_compiler('c')
 if cc.get_id() != 'gcc'
   add_project_arguments('-Wno-gnu-zero-variadic-macro-arguments', language: 'c')
+else
+  add_project_arguments('-Wno-attributes', language: 'c')
 endif
 add_project_arguments('-Wno-unused-parameter', language: 'c')
 add_project_arguments('-Wno-pedantic', language: 'c')
