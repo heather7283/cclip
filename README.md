@@ -44,6 +44,10 @@ If you use Arch Linux, you can install cclip from the [AUR](https://aur.archlinu
 
 Gentoo package in available in [heather7283-overlay](https://github.com/heather7283/heather7283-overlay) as `app-misc/cclip`.
 
+#### Nix/NixOS
+
+This repository has a flake.nix file. You could install it by adding it as a flake input.
+
 ## Usage
 > [!IMPORTANT]
 > cclipd uses wlr_data_control_unstable_v1 wayland protocol for clipboard interaction. Your compositor must support it in order for you to use cclip.
