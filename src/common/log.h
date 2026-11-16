@@ -31,5 +31,5 @@ enum loglevel {
 };
 
 void log_init(int fd, enum loglevel level);
-void log_print(enum loglevel level, const char* fmt, ...);
+void log_print(enum loglevel level, const char* fmt, ...) __attribute__((format(printf, 2, 3)));
 
