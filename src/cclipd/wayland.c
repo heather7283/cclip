@@ -328,7 +328,7 @@ static const struct wl_registry_listener registry_listener = {
 
 static int on_wayland_events(struct pollen_event_source* src, int fd, uint32_t ev, void* data) {
     if (wl_display_dispatch(wayland.display) < 0) {
-        log_print(ERR, "failed to process wayland events: %s", errno);
+        log_print(ERR, "failed to process wayland events: %s", strerror(errno));
         return -1;
     }
 
